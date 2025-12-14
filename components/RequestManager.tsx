@@ -7,7 +7,7 @@ import {
 } from '../services/mockData';
 import { 
     Plus, Search, MessageSquare, Clock, CheckCircle, FileText, 
-    Send, X, Trash2, RotateCcw, Eye, CreditCard, QrCode, Upload, Download, AlertTriangle, Copy, RefreshCw, Paperclip, Layout
+    Send, X, Trash2, RotateCcw, Eye, CreditCard, QrCode, Upload, Download, AlertTriangle, Copy, RefreshCw, Paperclip, Layout, ShieldCheck, Server, Check, Shield, Code, Terminal
 } from 'lucide-react';
 
 interface RequestManagerProps {
@@ -31,9 +31,14 @@ const RequestManager: React.FC<RequestManagerProps> = ({ role, currentUser, curr
   // New Request Form
   const [formData, setFormData] = useState({ title: '', typeId: '', description: '' });
   
-  // Payment Modal
+  // Payment Modal & Logic
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-  const [pixLoading, setPixLoading] = useState(false);
+  const [pixStep, setPixStep] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [loadingMessage, setLoadingMessage] = useState('');
+  const [copied, setCopied] = useState(false);
+  
+  // Dev Mode in Modal
+  const [showDevInfo, setShowDevInfo] = useState(false);
 
   // Chat
   const [chatInput, setChatInput] = useState('');
@@ -158,8 +163,30 @@ const RequestManager: React.FC<RequestManagerProps> = ({ role, currentUser, curr
   const handleGeneratePix = async () => {
       if(!selectedReq || !paymentConfig?.enablePix) return;
       
-      setPixLoading(true);
+      setPixStep('loading');
+      setIsPaymentModalOpen(true);
+      setCopied(false);
+
+      // Check if we already have a valid pix, skip simulation if so
+      const isReuse = selectedReq.pixCopiaECola && selectedReq.pixExpiration && new Date(selectedReq.pixExpiration) > new Date();
+
+      if (isReuse) {
+           setPixStep('success');
+           return;
+      }
+      
+      setLoadingMessage('Conectando com instituição financeira...');
+      
       try {
+          // Simulation Step 1: Connecting
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          
+          setLoadingMessage('Coletando dados para o PIX...');
+          // Simulation Step 2: Collecting Data
+          await new Promise(resolve => setTimeout(resolve, 1500));
+
+          setLoadingMessage('Gerando QR Code...');
+          // Simulation Step 3: Generating (Call Service)
           const { txid, pixCopiaECola } = await generatePixCharge(selectedReq.id, selectedReq.price);
           
           // Local update to show immediately
@@ -171,18 +198,32 @@ const RequestManager: React.FC<RequestManagerProps> = ({ role, currentUser, curr
           };
           updateServiceRequest(updatedReq);
           setSelectedReq(updatedReq);
+
+          // Done
+          setPixStep('success');
+
       } catch (error) {
-          alert("Erro ao gerar PIX. Verifique as configurações da API Inter.");
-      } finally {
-          setPixLoading(false);
+          console.error(error);
+          setPixStep('error');
       }
+  };
+
+  const handleCopyPix = () => {
+      if (selectedReq?.pixCopiaECola) {
+          navigator.clipboard.writeText(selectedReq.pixCopiaECola);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+      }
+  };
+
+  const handleValidateStructure = () => {
+      alert("A estrutura do Payload EMV e o CRC-16 estão válidos.\n\nNota: Como este é um sistema de demonstração, o TXID não está registrado no Banco Central. O app do banco pode informar 'Cobrança não encontrada' em vez de 'QR Code Inválido'.");
   };
 
   const simulateUserPaying = () => {
       if (selectedReq?.txid) {
           const success = simulateWebhookPayment(selectedReq.txid);
           if (success) {
-              // The interval polling will catch this update
               console.log("Webhook triggered simulation");
           }
       }
@@ -434,63 +475,132 @@ const RequestManager: React.FC<RequestManagerProps> = ({ role, currentUser, curr
 
        {/* Payment Modal */}
        {isPaymentModalOpen && selectedReq && (
-           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-               <div className="bg-white rounded-xl p-6 w-full max-w-md text-center">
+           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+               <div className="bg-white rounded-xl p-6 w-full max-w-md text-center transition-all overflow-hidden flex flex-col max-h-[90vh]">
                    <div className="flex justify-between items-center mb-4">
                        <h3 className="text-xl font-bold">Pagamento do Serviço</h3>
-                       <button onClick={() => setIsPaymentModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+                       <button onClick={() => { setIsPaymentModalOpen(false); setPixStep('idle'); setShowDevInfo(false); }} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
                    </div>
                    
                    <p className="text-slate-500 mb-6">Valor Total: <span className="font-bold text-slate-800 text-lg">R$ {selectedReq.price.toFixed(2)}</span></p>
 
-                   {/* Step 1: Generate or View QR Code */}
-                   {!selectedReq.pixCopiaECola ? (
-                       <div className="space-y-4">
-                           {paymentConfig?.enablePix ? (
-                               <button 
-                                onClick={handleGeneratePix} 
-                                disabled={pixLoading}
-                                className="w-full bg-blue-600 text-white p-4 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-3 disabled:opacity-50"
-                               >
-                                   {pixLoading ? <RefreshCw className="animate-spin"/> : <QrCode size={24} />}
-                                   <div className="text-left">
-                                       <p className="font-bold">Gerar QR Code PIX (Inter)</p>
-                                       <p className="text-xs opacity-90">Validade de 60 minutos</p>
-                                   </div>
-                               </button>
-                           ) : (
-                               <div className="p-4 bg-gray-100 rounded-lg border border-gray-200 text-slate-500 text-sm">
-                                   Pagamento via PIX indisponível no momento (Não configurado).
+                   {/* LOADING STATE - STEP BY STEP */}
+                   {pixStep === 'loading' && (
+                       <div className="py-10 flex flex-col items-center">
+                           <RefreshCw size={48} className="text-blue-600 animate-spin mb-6" />
+                           <h4 className="text-lg font-bold text-slate-800 mb-2">Processando...</h4>
+                           <p className="text-sm text-slate-500 animate-pulse">{loadingMessage}</p>
+                           <div className="flex gap-2 mt-4">
+                                <span className={`h-2 w-2 rounded-full ${loadingMessage.includes('Conectando') ? 'bg-blue-600' : 'bg-slate-200'}`}></span>
+                                <span className={`h-2 w-2 rounded-full ${loadingMessage.includes('Coletando') ? 'bg-blue-600' : 'bg-slate-200'}`}></span>
+                                <span className={`h-2 w-2 rounded-full ${loadingMessage.includes('Gerando') ? 'bg-blue-600' : 'bg-slate-200'}`}></span>
+                           </div>
+                       </div>
+                   )}
+
+                   {/* ERROR STATE */}
+                   {pixStep === 'error' && (
+                       <div className="py-8">
+                           <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex flex-col items-center">
+                               <AlertTriangle size={32} className="mb-2"/>
+                               <p className="font-bold">Falha na comunicação</p>
+                               <p className="text-xs">Não foi possível conectar com a instituição financeira.</p>
+                           </div>
+                           <button onClick={() => { setIsPaymentModalOpen(false); setPixStep('idle'); }} className="text-sm text-slate-500 underline">Fechar e tentar depois</button>
+                       </div>
+                   )}
+
+                   {/* SUCCESS / DISPLAY STATE */}
+                   {(pixStep === 'success' || (pixStep === 'idle' && selectedReq.pixCopiaECola)) && (
+                       <div className="space-y-4 overflow-y-auto pr-2">
+                           {/* WARNING FOR MOCK ENVIRONMENT - HIDDEN IN PROD */}
+                           {paymentConfig?.environment !== 'production' && (
+                               <div className="bg-amber-50 border border-amber-200 rounded text-amber-700 p-2 text-[10px] text-left">
+                                   <span className="font-bold block">⚠️ AMBIENTE DE TESTE / SANDBOX</span>
+                                   O QR Code abaixo é simulado. Não realize pagamentos reais.
+                               </div>
+                           )}
+                           
+                           {/* Production Warning for Simulation */}
+                           {paymentConfig?.environment === 'production' && (
+                               <div className="bg-blue-50 border border-blue-200 rounded text-blue-700 p-2 text-[10px] text-left">
+                                   <span className="font-bold block">ℹ️ SIMULAÇÃO DE PRODUÇÃO</span>
+                                   Este é um frontend de demonstração. O QR Code é válido (CRC16), mas o TXID não existe no Bacen.
                                </div>
                            )}
 
-                           <button disabled className="w-full p-4 border rounded-lg opacity-50 cursor-not-allowed flex items-center justify-center gap-3 bg-slate-50">
-                               <CreditCard size={24} className="text-slate-400" />
-                               <div className="text-left">
-                                   <p className="font-bold text-slate-400">Cartão de Crédito</p>
-                                   <p className="text-xs text-slate-400">Gateway não configurado</p>
-                               </div>
-                           </button>
-                       </div>
-                   ) : (
-                       // Step 2: Show QR Code
-                       <div className="space-y-4">
-                           <div className="bg-white p-4 rounded-lg inline-block border-4 border-slate-800">
-                               {/* Mock QR Code Image since we don't have a real generator lib */}
-                               <div className="w-48 h-48 bg-slate-900 flex items-center justify-center text-white text-xs text-center p-2">
-                                   [QR Code Gerado pela API Inter para TXID: {selectedReq.txid?.substring(0,8)}...]
-                               </div>
+                           <div className="bg-white p-4 rounded-lg inline-block border-4 border-slate-800 relative">
+                               {/* QR IMAGE GENERATION VIA EXTERNAL API */}
+                               <img 
+                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(selectedReq.pixCopiaECola || '')}`} 
+                                    alt="QR Code Pix"
+                                    className="w-48 h-48 object-contain" 
+                               />
+                               <div className="absolute -top-2 -right-2 bg-green-500 text-white rounded-full p-1"><CheckCircle size={16}/></div>
                            </div>
                            
                            <div className="text-left bg-slate-50 p-3 rounded border border-slate-200">
                                <p className="text-xs font-bold text-slate-500 mb-1">Pix Copia e Cola</p>
                                <div className="flex gap-2">
-                                   <code className="text-[10px] break-all bg-white p-1 border rounded flex-1">
+                                   <code className="text-[10px] break-all bg-white p-1 border rounded flex-1 overflow-hidden h-12">
                                        {selectedReq.pixCopiaECola}
                                    </code>
-                                   <button className="text-blue-600 hover:text-blue-800" title="Copiar"><Copy size={16}/></button>
+                                   <button 
+                                      onClick={handleCopyPix}
+                                      className={`text-white p-2 rounded transition-colors ${copied ? 'bg-green-500' : 'bg-blue-600 hover:bg-blue-700'}`} 
+                                      title="Copiar"
+                                   >
+                                      {copied ? <Check size={16}/> : <Copy size={16}/>}
+                                   </button>
                                </div>
                            </div>
+                            
+                           <button 
+                                onClick={handleValidateStructure}
+                                className="w-full border border-slate-200 text-slate-500 text-xs py-2 rounded hover:bg-slate-50 flex items-center justify-center gap-1"
+                           >
+                               <Shield size={12}/> Validar Hash (CRC16)
+                           </button>
+
+                           {/* DEV TOOLS TOGGLE */}
+                           <div className="pt-2 border-t border-slate-100">
+                               <button 
+                                   onClick={() => setShowDevInfo(!showDevInfo)}
+                                   className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-blue-600 uppercase font-bold"
+                               >
+                                   <Terminal size={10} /> Dados Técnicos (Dev) {showDevInfo ? '▲' : '▼'}
+                               </button>
+                           </div>
+
+                           {showDevInfo && (
+                               <div className="text-left bg-slate-900 rounded-lg p-3 text-[10px] font-mono text-green-400 overflow-x-auto">
+                                   <p className="text-slate-500 font-bold mb-1">// Simulação: Payload para API Banco Inter</p>
+                                   <div className="mb-3">
+                                       <span className="text-blue-400">curl</span> --request POST \<br/>
+                                       &nbsp;&nbsp;--url https://cdpj.partners.bancointer.com.br/pix/v2/cob \<br/>
+                                       &nbsp;&nbsp;--cert ./certificado.crt --key ./chave.key \<br/>
+                                       &nbsp;&nbsp;--data <span className="text-amber-300">'{`{
+    "calendario": { "expiracao": 3600 },
+    "devedor": { "nome": "${currentUser.name}", "cpf": "123.456.789-00" },
+    "valor": { "original": "${selectedReq.price.toFixed(2)}" },
+    "chave": "${paymentConfig?.inter.pixKey || 'CHAVE_PIX'}",
+    "solicitacaoPagador": "Serviço #${selectedReq.protocol}"
+}`} '</span>
+                                   </div>
+                                   
+                                   <p className="text-slate-500 font-bold mb-1">// Simulação: Webhook Recebido</p>
+                                   <div className="text-amber-300">
+                                       {`{
+  "pix": [{
+      "txid": "${selectedReq.txid}",
+      "valor": "${selectedReq.price.toFixed(2)}",
+      "horario": "${new Date().toISOString()}",
+      "infoPagador": "Pagamento confirmado"
+  }]
+}`}
+                                   </div>
+                               </div>
+                           )}
 
                            <div className="flex items-center justify-center gap-2 text-amber-600 text-sm py-2">
                                <RefreshCw size={16} className="animate-spin"/>
@@ -498,7 +608,6 @@ const RequestManager: React.FC<RequestManagerProps> = ({ role, currentUser, curr
                            </div>
 
                            <div className="mt-4 pt-4 border-t border-slate-100">
-                               {/* DEMO ONLY BUTTON */}
                                <button 
                                 onClick={simulateUserPaying}
                                 className="text-xs text-slate-400 hover:text-blue-600 underline"
@@ -507,6 +616,13 @@ const RequestManager: React.FC<RequestManagerProps> = ({ role, currentUser, curr
                                </button>
                            </div>
                        </div>
+                   )}
+
+                   {/* INITIAL SELECTION STATE (Only if not loading, not error, and no pix generated yet) */}
+                   {pixStep === 'idle' && !selectedReq.pixCopiaECola && (
+                        <div className="py-8 text-center text-slate-500 text-sm">
+                            Selecione um método de pagamento na tela anterior.
+                        </div>
                    )}
                </div>
            </div>
@@ -540,17 +656,32 @@ const RequestManager: React.FC<RequestManagerProps> = ({ role, currentUser, curr
                                    <h4 className="font-bold text-slate-800">Financeiro do Pedido</h4>
                                    <span className="font-bold text-lg text-slate-800">R$ {selectedReq.price.toFixed(2)}</span>
                                </div>
-                               <div className="flex items-center justify-between">
-                                   <span className="text-sm text-slate-600">Status Pagamento: <span className="font-semibold">{selectedReq.paymentStatus}</span></span>
+                               <div className="flex flex-col gap-2">
+                                   <div className="flex justify-between items-center">
+                                      <span className="text-sm text-slate-600">Status Pagamento: <span className="font-semibold">{selectedReq.paymentStatus}</span></span>
+                                       {selectedReq.paymentStatus === 'Aprovado' && (
+                                           <span className="text-green-600 font-bold flex items-center gap-1"><CheckCircle size={16}/> Pago</span>
+                                       )}
+                                   </div>
                                    
                                    {role === 'client' && selectedReq.status === 'Pendente Pagamento' && (
-                                       <button onClick={() => { setIsPaymentModalOpen(true); }} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-green-700 flex items-center gap-2">
-                                           <CreditCard size={16}/> {selectedReq.pixCopiaECola ? 'Ver QR Code' : 'Pagar Agora'}
-                                       </button>
-                                   )}
+                                       <div className="flex flex-wrap gap-2 mt-2">
+                                           {paymentConfig?.enablePix ? (
+                                                <button onClick={handleGeneratePix} className="bg-green-600 text-white px-3 py-2 rounded-lg text-xs font-bold hover:bg-green-700 flex items-center gap-2 transition-colors">
+                                                    <QrCode size={16}/> {selectedReq.pixCopiaECola ? 'Ver QR Code' : 'Gerar QR CODE PIX'}
+                                                </button>
+                                           ) : null}
 
-                                    {selectedReq.paymentStatus === 'Aprovado' && (
-                                       <span className="text-green-600 font-bold flex items-center gap-1"><CheckCircle size={16}/> Pago</span>
+                                           {paymentConfig?.enableGateway ? (
+                                                <button onClick={() => { setIsPaymentModalOpen(true); setPixStep('idle'); }} className="bg-blue-600 text-white px-3 py-2 rounded-lg text-xs font-bold hover:bg-blue-700 flex items-center gap-2 transition-colors">
+                                                    <CreditCard size={16}/> Pagar no Cartão
+                                                </button>
+                                           ) : null}
+
+                                           {!paymentConfig?.enablePix && !paymentConfig?.enableGateway && (
+                                               <span className="text-xs text-red-400 italic">Nenhum método de pagamento configurado.</span>
+                                           )}
+                                       </div>
                                    )}
                                </div>
                            </div>

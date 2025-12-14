@@ -25,6 +25,7 @@ export interface InterCredentials {
 }
 
 export interface PaymentConfig {
+  environment: 'sandbox' | 'production'; // Added environment toggle
   enablePix: boolean;
   enableGateway: boolean; // Future placeholder
   inter: InterCredentials;

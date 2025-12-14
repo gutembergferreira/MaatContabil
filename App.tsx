@@ -10,33 +10,78 @@ import NotificationPage from './components/NotificationPage';
 import MonthlyRoutines from './components/MonthlyRoutines';
 import RequestManager from './components/RequestManager';
 import UserProfile from './components/UserProfile';
+import DatabaseSetup from './components/DatabaseSetup'; // New
+import Login from './components/Login'; // New
 import { Role, User } from './types';
-import { getUsers, updateUser } from './services/mockData';
+import { getUsers } from './services/mockData';
+import { isDbInitialized } from './services/dbService';
 
 const App: React.FC = () => {
-  // Global State simulation
-  const [currentUser, setCurrentUser] = useState<User>(getUsers()[0]); // Default to admin
-  const [role, setRole] = useState<Role>(currentUser.role);
+  // Application State Flow
+  const [appState, setAppState] = useState<'setup' | 'login' | 'running'>('setup');
+  
+  // User Session
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [role, setRole] = useState<Role>('admin');
+  
+  // Navigation
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [currentCompanyId, setCurrentCompanyId] = useState<string>('c1');
 
-  // Sync role when user switches (Demo purpose)
   useEffect(() => {
-     if (role === 'admin') {
-         setCurrentUser(getUsers().find(u => u.role === 'admin')!);
-         setCurrentCompanyId('c1'); // Default view
-     } else {
-         const client = getUsers().find(u => u.role === 'client')!;
-         setCurrentUser(client);
-         if (client.companyId) setCurrentCompanyId(client.companyId);
+    // Check initialization status
+    if (isDbInitialized()) {
+        setAppState('login');
+    } else {
+        setAppState('setup');
+    }
+  }, []);
+
+  // Sync role updates
+  useEffect(() => {
+     if (appState === 'running' && currentUser) {
+         if (role === 'admin') {
+             const admin = getUsers().find(u => u.role === 'admin');
+             if(admin) setCurrentUser(admin);
+             setCurrentCompanyId('c1');
+         } else {
+             const client = getUsers().find(u => u.role === 'client');
+             if(client) {
+                 setCurrentUser(client);
+                 if (client.companyId) setCurrentCompanyId(client.companyId);
+             }
+         }
      }
   }, [role]);
 
-  const handleProfileUpdate = () => {
-      // Force refresh user data from store
-      const updated = getUsers().find(u => u.id === currentUser.id);
-      if (updated) setCurrentUser(updated);
+  const handleLoginSuccess = (role: Role) => {
+      const user = getUsers().find(u => u.role === role);
+      if (user) {
+          setCurrentUser(user);
+          setRole(role);
+          setAppState('running');
+      }
   };
+
+  const handleProfileUpdate = () => {
+      if (currentUser) {
+        const updated = getUsers().find(u => u.id === currentUser.id);
+        if (updated) setCurrentUser(updated);
+      }
+  };
+
+  // --- STATE 1: DATABASE SETUP ---
+  if (appState === 'setup') {
+      return <DatabaseSetup onComplete={() => setAppState('login')} />;
+  }
+
+  // --- STATE 2: LOGIN ---
+  if (appState === 'login') {
+      return <Login onLogin={handleLoginSuccess} />;
+  }
+
+  // --- STATE 3: RUNNING APP ---
+  if (!currentUser) return null;
 
   const renderContent = () => {
     switch (currentPage) {
