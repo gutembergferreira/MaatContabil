@@ -230,11 +230,11 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-// --- ROTA 3: TESTE INTER (APENAS PIX) ---
+// --- ROTA 3: TESTE INTER (SCOPE ATUALIZADO: cob.read) ---
 app.post('/api/test-inter', async (req, res) => {
     const { clientId, clientSecret } = req.body;
     
-    console.log('--- TESTE CONEXÃO INTER (PIX) ---');
+    console.log('--- TESTE CONEXÃO INTER (COB) ---');
     const crtPath = path.join(__dirname, 'certs', 'certificado.crt');
     const keyPath = path.join(__dirname, 'certs', 'chave.key');
 
@@ -248,8 +248,8 @@ app.post('/api/test-inter', async (req, res) => {
             key: fs.readFileSync(keyPath)
         });
 
-        // ESCOPO PIX
-        const scope = 'pix.read'; 
+        // ESCOPO CORRIGIDO: cob.read (Cobrança Imediata Read) ao invés de pix.read
+        const scope = 'cob.read'; 
         
         console.log(`Tentando obter token com scope: '${scope}'...`);
 
@@ -263,21 +263,21 @@ app.post('/api/test-inter', async (req, res) => {
             { httpsAgent: agent }
         );
 
-        console.log('Sucesso! Token PIX obtido.');
-        res.json({ success: true, message: 'Conexão PIX Estabelecida com Sucesso!', logs: ['Token OAuth V2 (Pix Read) Gerado'] });
+        console.log('Sucesso! Token COB obtido.');
+        res.json({ success: true, message: 'Conexão e Permissão de Cobrança (cob.read) Confirmadas!', logs: ['Token OAuth V2 (Cob Read) Gerado'] });
 
     } catch (error) {
         const responseData = error.response?.data;
         console.error('ERRO INTER:', JSON.stringify(responseData, null, 2));
         
         let msg = responseData?.error_description || error.message;
-        if (msg.includes('scope')) msg = "ERRO DE PERMISSÃO: Verifique se sua aplicação Inter tem o escopo 'Pix' ativado.";
+        if (msg.includes('scope')) msg = "ERRO DE PERMISSÃO: Sua aplicação Inter não tem o escopo 'cob.read' (Consultar cobrança imediata).";
         
         res.status(400).json({ success: false, message: msg, logs: [JSON.stringify(responseData)] });
     }
 });
 
-// --- ROTA 4: GERAR PIX (REAL) ---
+// --- ROTA 4: GERAR PIX (SCOPE ATUALIZADO: cob.write) ---
 app.post('/api/pix', async (req, res) => {
     const { clientId, clientSecret, pixKey, amount, protocol, requestData } = req.body;
     
@@ -290,12 +290,13 @@ app.post('/api/pix', async (req, res) => {
         const agent = new https.Agent({ cert: fs.readFileSync(crtPath), key: fs.readFileSync(keyPath) });
         const INTER_URL = 'https://cdpj.partners.bancointer.com.br';
 
-        console.log('Gerando Token Pix Write...');
+        console.log('Gerando Token Cob Write (cob.write)...');
+        // ESCOPO CORRIGIDO: cob.write (Cobrança Imediata Write)
         const auth = await axios.post(`${INTER_URL}/oauth/v2/token`, 
             new URLSearchParams({
                 client_id: clientId,
                 client_secret: clientSecret,
-                scope: 'pix.write',
+                scope: 'cob.write', 
                 grant_type: 'client_credentials'
             }), { httpsAgent: agent }
         );
@@ -303,7 +304,10 @@ app.post('/api/pix', async (req, res) => {
         console.log('Gerando Cobrança...');
         const cob = await axios.post(`${INTER_URL}/pix/v2/cob`, {
             calendario: { expiracao: 3600 },
-            devedor: { cpf: requestData.cpf || '123.456.789-00', nome: requestData.name || 'Cliente Maat' },
+            devedor: { 
+                cpf: requestData.cpf, // CPF vindo do Frontend
+                nome: requestData.name 
+            },
             valor: { original: amount.toFixed(2) },
             chave: pixKey,
             solicitacaoPagador: `Servico ${protocol}`

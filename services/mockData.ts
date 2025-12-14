@@ -5,10 +5,12 @@ import { Routine, Document, Company, User, Notification, ChatMessage, AuditLog, 
 // ==========================================
 
 // --- LOCAL STORAGE CACHE (Para UI rápida) ---
-let USERS: User[] = [
-  { id: 'u1', name: 'Carlos Contador', email: 'admin@maat.com', role: 'admin', password: 'admin' },
-  { id: 'u2', name: 'Ana Empresária', email: 'cliente@demo.com', role: 'client', companyId: 'c1', password: '123' },
-  { id: 'u3', name: 'Roberto Varejo', email: 'roberto@varejo.com', role: 'client', companyId: 'c2', password: '123' }
+
+// ADDING CPF TO USERS FOR PRODUCTION TESTING
+let USERS: (User & { cpf?: string })[] = [
+  { id: 'u1', name: 'Carlos Contador', email: 'admin@maat.com', role: 'admin', password: 'admin', cpf: '000.000.000-00' },
+  { id: 'u2', name: 'Ana Empresária', email: 'cliente@demo.com', role: 'client', companyId: 'c1', password: '123', cpf: '006.543.210-90' }, // CPF válido matematicamente para teste
+  { id: 'u3', name: 'Roberto Varejo', email: 'roberto@varejo.com', role: 'client', companyId: 'c2', password: '123', cpf: '123.456.789-09' }
 ];
 
 let COMPANIES: Company[] = [
@@ -235,17 +237,28 @@ export const generatePixCharge = async (reqId: string, amount: number) => {
         throw new Error('CONFIG_ERROR: Client ID do Banco Inter não configurado nas Configurações.');
     }
 
+    // Pega os dados do pedido e do usuário para enviar CPF correto
+    const req = REQUESTS.find(r => r.id === reqId);
+    const clientUser = USERS.find(u => u.id === req?.clientId);
+
+    // Usa o CPF do usuário se existir, senão usa o padrão (que falhará em produção se não for válido)
+    const payerCpf = clientUser?.cpf || '006.543.210-90'; 
+    const payerName = clientUser?.name || 'Cliente Maat';
+
     try {
         const res = await fetch(`${API_URL}/pix`, { 
             method: 'POST', 
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ 
                 amount, 
-                protocol: 'REQ_REAL_' + reqId, // Envia ID real
+                protocol: 'REQ_REAL_' + reqId, 
                 pixKey: PAYMENT_CONFIG.inter.pixKey, 
                 clientId: PAYMENT_CONFIG.inter.clientId, 
                 clientSecret: PAYMENT_CONFIG.inter.clientSecret, 
-                requestData: { nome: 'Cliente Maat', cpf: '00000000000' } // Em produção, pegaria do cadastro do usuário
+                requestData: { 
+                    nome: payerName, 
+                    cpf: payerCpf
+                } 
             })
         });
 
