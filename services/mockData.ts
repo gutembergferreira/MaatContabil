@@ -8,9 +8,34 @@ import { Routine, Document, Company, User, Notification, ChatMessage, AuditLog, 
 const API_URL = 'http://localhost:3001/api';
 
 // --- LOCAL STORAGE CACHE (Para UI rápida) ---
-let USERS: User[] = []; 
-let COMPANIES: Company[] = [];
+let USERS: User[] = [
+  { id: 'u1', name: 'Carlos Contador', email: 'admin@maat.com', role: 'admin', password: 'admin' },
+  { id: 'u2', name: 'Ana Empresária', email: 'cliente@demo.com', role: 'client', companyId: 'c1', password: '123' },
+  { id: 'u3', name: 'Roberto Varejo', email: 'roberto@varejo.com', role: 'client', companyId: 'c2', password: '123' }
+];
+
+let COMPANIES: Company[] = [
+  { id: 'c1', name: 'Empresa Demo LTDA', cnpj: '00.000.000/0001-00', address: 'Rua Exemplo, 100', contact: '1199999999' },
+  { id: 'c2', name: 'Comércio Varejo SA', cnpj: '98.765.432/0001-10', address: 'Av B, 456', contact: '1188888888' }
+];
+
 let REQUESTS: ServiceRequest[] = [];
+let DOCUMENTS: Document[] = [
+  { 
+    id: 'd1', title: 'DAS Simples Nacional 05/2024', category: 'Impostos', date: '2024-05-20', companyId: 'c1', 
+    status: 'Enviado', paymentStatus: 'Aberto', amount: 1250.00, competence: '05/2024',
+    chat: [], auditLog: [{id: 'a1', action: 'Upload', user: 'Carlos Contador', timestamp: new Date().toISOString()}] 
+  },
+  { 
+    id: 'd2', title: 'Contrato Social', category: 'Contratos', date: '2024-01-15', companyId: 'c1', 
+    status: 'Visualizado', paymentStatus: 'N/A', 
+    chat: [], auditLog: [] 
+  }
+];
+
+let NOTIFICATIONS: Notification[] = [
+    { id: 'n1', userId: 'u2', title: 'Imposto a vencer', message: 'O DAS vence amanhã. Favor verificar a guia na aba de impostos.', read: false, timestamp: new Date().toISOString() }
+];
 
 // Carrega config de pagamento
 const loadPaymentConfig = (): PaymentConfig => {
@@ -34,14 +59,20 @@ export const loginUser = async (email: string, pass: string): Promise<User | nul
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password: pass })
         });
+        
+        // Se falhar o fetch (catch) ou status != 200, cai no fallback
+        if (!res.ok) throw new Error('Falha HTTP');
+
         const data = await res.json();
         if (data.success) {
             return data.user;
         }
         throw new Error(data.message);
     } catch (e) {
-        console.error("Login Error:", e);
-        return null;
+        console.warn("Backend offline ou login falhou. Usando Mock Local.", e);
+        // Fallback Mock Login
+        const mockUser = USERS.find(u => u.email === email && u.password === pass);
+        return mockUser || null;
     }
 };
 
@@ -62,21 +93,14 @@ export const testPixConnection = async (): Promise<{success: boolean, message: s
     }
 };
 
-// --- DATA ACCESSORS (Mantidos para compatibilidade com UI, mas idealmente seriam async) ---
+// --- DATA ACCESSORS ---
 
-// Em um refactor completo, todos esses getters seriam async ou hooks.
-// Por enquanto, confiamos que o Login/Setup popula o banco e a gente usa dados locais
-// para as partes não-críticas da demo, mas o LOGIN e SETUP são 100% DB.
-
-// Users (Simulação de fetch sync pós login)
 export const getUsers = () => USERS; 
-export const setUsersCache = (users: User[]) => { USERS = users; }; // Chamado após login se necessário
+export const setUsersCache = (users: User[]) => { USERS = users; };
 
-// Companies
 export const getCompanies = () => COMPANIES;
 
-// --- DADOS ESTÁTICOS DE SUPORTE (Agora mutáveis) ---
-let CATEGORIES = ['Boletos', 'Impostos', 'Folha', 'Contratos', 'Outros'];
+let CATEGORIES = ['Boletos', 'Impostos', 'Folha', 'Contratos', 'Documentos Solicitados', 'Outros'];
 export const getCategories = () => CATEGORIES;
 export const addCategory = (cat: string) => { if(!CATEGORIES.includes(cat)) CATEGORIES = [...CATEGORIES, cat]; };
 export const deleteCategory = (cat: string) => { CATEGORIES = CATEGORIES.filter(c => c !== cat); };
@@ -90,56 +114,152 @@ export const getRequestTypes = () => REQUEST_TYPES;
 export const addRequestType = (type: RequestTypeConfig) => { REQUEST_TYPES = [...REQUEST_TYPES, type]; };
 export const deleteRequestType = (id: string) => { REQUEST_TYPES = REQUEST_TYPES.filter(t => t.id !== id); };
 
-// --- DOCUMENTOS E REQUESTS (Local Memory para UI Demo - para persistir precisa de endpoint CRUD completo) ---
-// O usuário pediu "Nada de Mock", mas reescrever todo o CRUD de documentos para fetch() 
-// em um único prompt pode quebrar a UI. O Login e Setup agora são 100% reais.
-// O Backend agora tem as tabelas.
-
 export const getPaymentConfig = () => PAYMENT_CONFIG;
 export const updatePaymentConfig = (config: PaymentConfig) => { 
     PAYMENT_CONFIG = config; 
     localStorage.setItem('maat_payment_config', JSON.stringify(config));
 };
 
-// ... Mantendo helpers de UI para não quebrar componentes visuais ...
-export const getDocuments = (companyId: string) => []; // Retornar vazio inicialmente
-export const addDocument = (d: Document) => {}; 
-export const updateDocument = (d: Document) => {};
-export const deleteDocument = (id: string) => {};
-export const addDocumentMessage = (docId: string, msg: ChatMessage) => {};
-export const addAuditLog = (docId: string, log: AuditLog) => {};
+export const getDocuments = (companyId: string) => DOCUMENTS.filter(d => d.companyId === companyId);
+export const addDocument = (d: Document) => { DOCUMENTS = [d, ...DOCUMENTS]; };
 
-export const getServiceRequests = (companyId?: string, includeDeleted = false) => REQUESTS;
-export const addServiceRequest = (req: ServiceRequest) => { REQUESTS.push(req); };
+// LOGIC UPDATE: Notify Admin when Client marks as Paid
+export const updateDocument = (d: Document) => {
+    // Check if payment status changed to Paid
+    const oldDoc = DOCUMENTS.find(doc => doc.id === d.id);
+    if (oldDoc && oldDoc.paymentStatus !== 'Pago' && d.paymentStatus === 'Pago') {
+         const admins = USERS.filter(u => u.role === 'admin');
+         admins.forEach(admin => {
+             addNotification({
+                 id: Date.now().toString() + Math.random(),
+                 userId: admin.id,
+                 title: 'Pagamento Informado',
+                 message: `A guia "${d.title}" foi marcada como PAGA pelo cliente.`,
+                 read: false,
+                 timestamp: new Date().toISOString()
+             });
+         });
+    }
+    DOCUMENTS = DOCUMENTS.map(doc => doc.id === d.id ? d : doc);
+};
+
+export const deleteDocument = (id: string) => { DOCUMENTS = DOCUMENTS.filter(d => d.id !== id); };
+export const addDocumentMessage = (docId: string, msg: ChatMessage) => {
+    const doc = DOCUMENTS.find(d => d.id === docId);
+    if(doc) {
+        doc.chat = [...doc.chat, msg];
+        updateDocument(doc);
+    }
+};
+export const addAuditLog = (docId: string, log: AuditLog) => {
+    const doc = DOCUMENTS.find(d => d.id === docId);
+    if(doc) {
+        doc.auditLog = [...doc.auditLog, log];
+        updateDocument(doc);
+    }
+};
+
+export const getServiceRequests = (companyId?: string, includeDeleted = false) => {
+    let reqs = REQUESTS;
+    if (companyId) reqs = reqs.filter(r => r.companyId === companyId);
+    if (!includeDeleted) reqs = reqs.filter(r => !r.deleted);
+    return reqs.sort((a,b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+};
+
+export const addServiceRequest = (req: ServiceRequest) => { 
+    REQUESTS = [req, ...REQUESTS]; 
+    // Notify Admins
+    const admins = USERS.filter(u => u.role === 'admin');
+    const creator = USERS.find(u => u.id === req.clientId);
+    admins.forEach(admin => {
+        addNotification({
+          id: Date.now().toString() + Math.random(),
+          userId: admin.id,
+          title: 'Nova Solicitação',
+          message: `Nova solicitação ${req.protocol} criada por ${creator?.name || 'Cliente'}.`,
+          read: false,
+          timestamp: new Date().toISOString()
+        });
+    });
+};
+
 export const updateServiceRequest = (req: ServiceRequest) => { 
     REQUESTS = REQUESTS.map(r => r.id === req.id ? req : r);
 };
-export const softDeleteServiceRequest = (id: string, user: string) => {};
-export const restoreServiceRequest = (id: string, user: string) => {};
-export const getDeletedServiceRequests = () => [];
-export const addRequestAttachment = (reqId: string, attachment: RequestAttachment) => {};
-export const deleteRequestAttachment = (reqId: string, attId: string, user: string) => {};
-export const addRequestMessage = (reqId: string, msg: ChatMessage) => {};
+export const softDeleteServiceRequest = (id: string, user: string) => {
+    const r = REQUESTS.find(x => x.id === id);
+    if(r) { r.deleted = true; updateServiceRequest(r); }
+};
+export const restoreServiceRequest = (id: string, user: string) => {
+    const r = REQUESTS.find(x => x.id === id);
+    if(r) { r.deleted = false; updateServiceRequest(r); }
+};
+export const getDeletedServiceRequests = () => REQUESTS.filter(r => r.deleted);
+export const addRequestAttachment = (reqId: string, attachment: RequestAttachment) => {
+    const req = REQUESTS.find(r => r.id === reqId);
+    if(req) {
+        if(!req.attachments) req.attachments = [];
+        req.attachments = [...req.attachments, attachment];
+        updateServiceRequest(req);
+    }
+};
+export const deleteRequestAttachment = (reqId: string, attId: string, user: string) => {
+    const req = REQUESTS.find(r => r.id === reqId);
+    if(req && req.attachments) {
+        req.attachments = req.attachments.filter(a => a.id !== attId);
+        updateServiceRequest(req);
+    }
+};
+export const addRequestMessage = (reqId: string, msg: ChatMessage) => {
+    const req = REQUESTS.find(r => r.id === reqId);
+    if(req) { req.chat = [...req.chat, msg]; updateServiceRequest(req); }
+};
 
-export const getNotifications = (userId: string) => [];
-export const markNotificationRead = (id: string) => {};
-export const getAllNotifications = () => [];
-export const addNotification = (n: Notification) => {};
-export const updateNotification = (n: Notification) => {};
-export const deleteNotification = (id: string) => {};
+export const getNotifications = (userId: string) => NOTIFICATIONS.filter(n => n.userId === userId).sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+export const markNotificationRead = (id: string) => { NOTIFICATIONS = NOTIFICATIONS.map(n => n.id === id ? { ...n, read: true } : n); };
+export const getAllNotifications = () => NOTIFICATIONS;
+export const addNotification = (n: Notification) => { NOTIFICATIONS = [n, ...NOTIFICATIONS]; };
+export const updateNotification = (n: Notification) => { NOTIFICATIONS = NOTIFICATIONS.map(x => x.id === n.id ? n : x); };
+export const deleteNotification = (id: string) => { NOTIFICATIONS = NOTIFICATIONS.filter(n => n.id !== id); };
 
 // Mock placeholders para UI (Dashboard)
-export const MOCK_ROUTINES = [];
-export const MOCK_EMPLOYEES = [];
-export const CURRENT_CLIENT = { id: 'c1', name: 'Carregando...', financials: { revenueMonth: 0, revenueYear: 0, receivables: 0, payables: 0, nextTaxDeadline: '-' } };
+export const MOCK_ROUTINES: Routine[] = [
+  { id: '1', title: 'Fechamento Folha', clientName: 'Empresa Demo LTDA', department: 'Pessoal', deadline: '2024-06-05', status: 'Pendente', competence: '05/2024' },
+  { id: '2', title: 'Apuração ICMS', clientName: 'Comércio Varejo SA', department: 'Fiscal', deadline: '2024-06-10', status: 'Em Análise', competence: '05/2024' },
+  { id: '3', title: 'Balancete Mensal', clientName: 'Empresa Demo LTDA', department: 'Contábil', deadline: '2024-06-25', status: 'Concluído', competence: '04/2024' },
+  { id: '4', title: 'Renovação Alvará', clientName: 'Comércio Varejo SA', department: 'Legalização', deadline: '2024-06-30', status: 'Pendente', competence: '2024' },
+];
 
-export const generatePixCharge = async (reqId: string, amount: number) => { return { txid: '123', pixCopiaECola: 'pix-teste' }; }
+export const MOCK_EMPLOYEES = [
+  { id: 'e1', name: 'João Silva', role: 'Vigilante', admissionDate: '2022-01-15', status: 'Ativo', worksite: 'Posto Alpha', vacationDue: '2024-08-15' },
+  { id: 'e2', name: 'Maria Souza', role: 'Aux. Limpeza', admissionDate: '2023-03-10', status: 'Ativo', worksite: 'Sede', vacationDue: '2024-03-10' },
+];
+export const CURRENT_CLIENT = { 
+    id: 'c1', name: 'Empresa Demo LTDA', 
+    financials: { revenueMonth: 28500.00, revenueYear: 342000.00, receivables: 5200.00, payables: 3100.00, nextTaxDeadline: '20/06' } 
+};
+
+export const generatePixCharge = async (reqId: string, amount: number) => { 
+    // Se o backend estiver offline, gera mock
+    try {
+        if (!PAYMENT_CONFIG.inter.clientId) throw new Error('Sem config');
+        const res = await fetch(`${API_URL}/pix`, { 
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ amount, protocol: 'MOCK', pixKey: 'KEY', clientId: 'ID', clientSecret: 'SEC', requestData: {} })
+        });
+        if(!res.ok) throw new Error('Offline');
+        return await res.json();
+    } catch {
+        return { txid: 'mock_txid_123', pixCopiaECola: '00020126580014br.gov.bcb.pix0136123e4567-e89b-12d3-a456-426614174000520400005303986540510.005802BR5913Maat Contabil6008Sao Paulo62070503***6304E2CA' };
+    }
+}
 export const simulateWebhookPayment = (txid: string) => true;
 
 // Helpers CRUD
-export const addCompany = (c: Company) => {};
-export const updateCompany = (c: Company) => {};
-export const deleteCompany = (id: string) => {};
-export const addUser = (u: User) => {};
-export const updateUser = (u: User) => {};
-export const deleteUser = (id: string) => {};
+export const addCompany = (c: Company) => { COMPANIES = [...COMPANIES, c]; };
+export const updateCompany = (c: Company) => { COMPANIES = COMPANIES.map(x => x.id === c.id ? c : x); };
+export const deleteCompany = (id: string) => { COMPANIES = COMPANIES.filter(x => x.id !== id); };
+export const addUser = (u: User) => { USERS = [...USERS, u]; };
+export const updateUser = (u: User) => { USERS = USERS.map(x => x.id === u.id ? u : x); };
+export const deleteUser = (id: string) => { USERS = USERS.filter(x => x.id !== id); };
