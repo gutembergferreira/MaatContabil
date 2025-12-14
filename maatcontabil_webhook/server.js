@@ -301,12 +301,20 @@ app.post('/api/pix', async (req, res) => {
             }), { httpsAgent: agent }
         );
         
+        // CORREÇÃO CRÍTICA: Sanitização do CPF e garantia do Nome
+        const cleanCpf = (requestData.cpf || '').replace(/\D/g, '');
+        const validName = requestData.name || requestData.nome || 'Cliente Consumidor';
+
+        if (!cleanCpf || cleanCpf.length !== 11) {
+             throw new Error("CPF inválido para geração de PIX. Deve conter 11 dígitos.");
+        }
+
         console.log('Gerando Cobrança...');
         const cob = await axios.post(`${INTER_URL}/pix/v2/cob`, {
             calendario: { expiracao: 3600 },
             devedor: { 
-                cpf: requestData.cpf, // CPF vindo do Frontend
-                nome: requestData.name 
+                cpf: cleanCpf, 
+                nome: validName 
             },
             valor: { original: amount.toFixed(2) },
             chave: pixKey,

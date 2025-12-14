@@ -241,8 +241,10 @@ export const generatePixCharge = async (reqId: string, amount: number) => {
     const req = REQUESTS.find(r => r.id === reqId);
     const clientUser = USERS.find(u => u.id === req?.clientId);
 
-    // Usa o CPF do usuário se existir, senão usa o padrão (que falhará em produção se não for válido)
-    const payerCpf = clientUser?.cpf || '006.543.210-90'; 
+    // Usa o CPF do usuário se existir e remove caracteres não numéricos
+    // Banco Inter exige 11 dígitos numéricos apenas.
+    const rawCpf = clientUser?.cpf || '006.543.210-90'; 
+    const payerCpf = rawCpf.replace(/\D/g, ''); 
     const payerName = clientUser?.name || 'Cliente Maat';
 
     try {
@@ -256,8 +258,8 @@ export const generatePixCharge = async (reqId: string, amount: number) => {
                 clientId: PAYMENT_CONFIG.inter.clientId, 
                 clientSecret: PAYMENT_CONFIG.inter.clientSecret, 
                 requestData: { 
-                    nome: payerName, 
-                    cpf: payerCpf
+                    name: payerName, // Envia 'name' para alinhar com server.js
+                    cpf: payerCpf    // Envia CPF limpo
                 } 
             })
         });
@@ -267,7 +269,14 @@ export const generatePixCharge = async (reqId: string, amount: number) => {
         if(!res.ok) {
             // Repassa o erro detalhado do backend para o frontend tratar
             const errorMsg = data.details?.error_description || data.error || data.message || 'Erro desconhecido ao gerar PIX';
-            throw new Error(errorMsg);
+            
+            // Se houver detalhes de violação (ex: Inter), adiciona à mensagem
+            let detail = '';
+            if (data.details?.violacoes) {
+                detail = ': ' + data.details.violacoes.map((v: any) => v.razao).join(', ');
+            }
+            
+            throw new Error(errorMsg + detail);
         }
 
         return data; // { txid, pixCopiaECola } reais do Inter
