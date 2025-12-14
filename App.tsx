@@ -10,15 +10,15 @@ import NotificationPage from './components/NotificationPage';
 import MonthlyRoutines from './components/MonthlyRoutines';
 import RequestManager from './components/RequestManager';
 import UserProfile from './components/UserProfile';
-import DatabaseSetup from './components/DatabaseSetup'; // New
-import Login from './components/Login'; // New
+import DatabaseSetup from './components/DatabaseSetup'; 
+import Login from './components/Login'; 
 import { Role, User } from './types';
 import { getUsers } from './services/mockData';
-import { isDbInitialized } from './services/dbService';
+import { isDbInitialized, checkBackendHealth, resetSystem } from './services/dbService';
 
 const App: React.FC = () => {
   // Application State Flow
-  const [appState, setAppState] = useState<'setup' | 'login' | 'running'>('setup');
+  const [appState, setAppState] = useState<'loading' | 'setup' | 'login' | 'running'>('loading');
   
   // User Session
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -29,12 +29,24 @@ const App: React.FC = () => {
   const [currentCompanyId, setCurrentCompanyId] = useState<string>('c1');
 
   useEffect(() => {
-    // Check initialization status
-    if (isDbInitialized()) {
-        setAppState('login');
-    } else {
-        setAppState('setup');
-    }
+    // Initialization Logic: Check Local Flag AND Backend Status
+    const init = async () => {
+        const localFlag = isDbInitialized();
+        
+        // Verifica se o backend realmente está conectado
+        const backendReady = await checkBackendHealth();
+
+        if (localFlag && backendReady) {
+            setAppState('login');
+        } else {
+            // Se backend não está pronto, forçamos setup (mesmo que localStorage diga que sim)
+            if (localFlag && !backendReady) {
+                console.warn('Frontend diz configurado, mas Backend está offline/desconectado. Forçando Setup.');
+            }
+            setAppState('setup');
+        }
+    };
+    init();
   }, []);
 
   // Sync role updates
@@ -69,6 +81,17 @@ const App: React.FC = () => {
         if (updated) setCurrentUser(updated);
       }
   };
+
+  if (appState === 'loading') {
+      return (
+          <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">
+              <div className="flex flex-col items-center gap-4">
+                  <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                  <p className="text-sm text-slate-400">Verificando conexão com o servidor...</p>
+              </div>
+          </div>
+      );
+  }
 
   // --- STATE 1: DATABASE SETUP ---
   if (appState === 'setup') {

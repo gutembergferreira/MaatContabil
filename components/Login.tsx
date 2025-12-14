@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { User, Lock, ArrowRight, Scale, AlertCircle } from 'lucide-react';
+import { User, Lock, ArrowRight, Scale, AlertCircle, RotateCcw } from 'lucide-react';
 import { loginUser } from '../services/mockData';
+import { resetSystem } from '../services/dbService';
 
 interface LoginProps {
     onLogin: (role: 'admin' | 'client') => void;
@@ -94,8 +95,16 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                         </button>
                     </form>
                     
-                    <div className="text-center text-xs text-slate-400 mt-8">
-                        Dica: Se resetou o banco, use <b>admin@maat.com</b> / <b>admin</b>
+                    <div className="flex flex-col items-center gap-4 mt-8 pt-6 border-t border-slate-100">
+                        <div className="text-center text-xs text-slate-400">
+                            Dica: Se resetou o banco, use <b>admin@maat.com</b> / <b>admin</b>
+                        </div>
+                        <button 
+                            onClick={() => { if(confirm('Isso limpará as configurações locais e forçará a tela de setup. Continuar?')) resetSystem(); }}
+                            className="text-slate-400 hover:text-red-500 text-xs flex items-center gap-1 transition-colors"
+                        >
+                            <RotateCcw size={12}/> Resetar Configuração do Sistema
+                        </button>
                     </div>
                 </div>
             </div>

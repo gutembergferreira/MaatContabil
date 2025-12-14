@@ -8,16 +8,41 @@ export interface DbConfig {
 }
 
 const DB_INITIALIZED_KEY = 'maat_db_initialized';
+const DB_CONFIG_KEY = 'maat_db_config';
 const API_URL = 'http://localhost:3001/api';
 
 export const isDbInitialized = (): boolean => {
     return localStorage.getItem(DB_INITIALIZED_KEY) === 'true';
 };
 
+export const checkBackendHealth = async (): Promise<boolean> => {
+    try {
+        const res = await fetch(`${API_URL}/status`);
+        const data = await res.json();
+        // Backend diz que está configurado se dbPool não for null
+        return data.configured === true;
+    } catch (e) {
+        console.error('Backend offline ou inacessível:', e);
+        return false;
+    }
+};
+
 export const saveDbConfig = (config: DbConfig) => {
-    // In a real app, we might store connection string in backend env, 
-    // here we just persist state that setup is done.
     localStorage.setItem(DB_INITIALIZED_KEY, 'true');
+    localStorage.setItem(DB_CONFIG_KEY, JSON.stringify(config));
+};
+
+export const getDbConfig = (): DbConfig | null => {
+    const saved = localStorage.getItem(DB_CONFIG_KEY);
+    if (saved) {
+        try {
+            return JSON.parse(saved);
+        } catch (e) {
+            console.error('Error parsing DB config', e);
+            return null;
+        }
+    }
+    return null;
 };
 
 export const initializeDatabase = async (config: DbConfig): Promise<{success: boolean, message: string, logs: string[]}> => {
@@ -31,21 +56,22 @@ export const initializeDatabase = async (config: DbConfig): Promise<{success: bo
         const data = await response.json();
         
         if (data.success) {
-            localStorage.setItem(DB_INITIALIZED_KEY, 'true');
+            saveDbConfig(config);
             return { success: true, message: 'Banco de dados configurado com sucesso!', logs: ['Conectado ao Backend', 'Schema executado', 'Tabelas criadas'] };
         } else {
             return { success: false, message: data.message, logs: data.logs || [] };
         }
-    } catch (error) {
+    } catch (error: any) {
         return { 
             success: false, 
             message: 'Erro ao conectar com o servidor backend (maatcontabil_webhook). Verifique se ele está rodando na porta 3001.', 
-            logs: ['Falha de conexão com localhost:3001'] 
+            logs: ['Falha de conexão com localhost:3001', error.message || 'Erro desconhecido'] 
         };
     }
 };
 
 export const resetSystem = () => {
     localStorage.removeItem(DB_INITIALIZED_KEY);
+    localStorage.removeItem(DB_CONFIG_KEY);
     window.location.reload();
 };

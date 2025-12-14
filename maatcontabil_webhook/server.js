@@ -104,6 +104,19 @@ CREATE TABLE IF NOT EXISTS service_requests (
 );
 `;
 
+// --- ROTA 0: STATUS CHECK (NOVA) ---
+app.get('/api/status', (req, res) => {
+    // Retorna se o DB está conectado e se o arquivo de config existe
+    const configExists = fs.existsSync(DB_CONFIG_FILE);
+    const dbConnected = !!dbPool;
+    
+    res.json({ 
+        configured: dbConnected, 
+        configExists,
+        message: dbConnected ? 'Sistema Online' : 'Banco desconectado'
+    });
+});
+
 // --- ROTA 1: SETUP DO BANCO (CRIAÇÃO REAL) ---
 app.post('/api/setup-db', async (req, res) => {
     const config = req.body;

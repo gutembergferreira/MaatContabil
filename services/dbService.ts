@@ -12,21 +12,27 @@ export interface DbConfig {
 const DB_INITIALIZED_KEY = 'maat_db_initialized';
 const API_URL = 'http://localhost:3001/api';
 
-export const getDbConfig = (): DbConfig | null => {
-    const data = localStorage.getItem('maat_db_config'); // Recupera config salva para mostrar na UI
-    return data ? JSON.parse(data) : null;
-};
-
-export const saveDbConfig = (config: DbConfig) => {
-    localStorage.setItem('maat_db_config', JSON.stringify(config));
-};
-
 export const isDbInitialized = (): boolean => {
     return localStorage.getItem(DB_INITIALIZED_KEY) === 'true';
 };
 
+export const checkBackendHealth = async (): Promise<boolean> => {
+    try {
+        const res = await fetch(`${API_URL}/status`);
+        const data = await res.json();
+        // Backend diz que está configurado se dbPool não for null
+        return data.configured === true;
+    } catch (e) {
+        console.error('Backend offline ou inacessível:', e);
+        return false;
+    }
+};
+
+export const saveDbConfig = (config: DbConfig) => {
+    localStorage.setItem(DB_INITIALIZED_KEY, 'true');
+};
+
 export const initializeDatabase = async (config: DbConfig): Promise<{success: boolean, message: string, logs: string[]}> => {
-    // ESTA VERSÃO NÃO USA MOCK. ELA CHAMA O BACKEND REAL.
     try {
         const response = await fetch(`${API_URL}/setup-db`, {
             method: 'POST',
@@ -38,17 +44,9 @@ export const initializeDatabase = async (config: DbConfig): Promise<{success: bo
         
         if (data.success) {
             localStorage.setItem(DB_INITIALIZED_KEY, 'true');
-            return { 
-                success: true, 
-                message: 'Banco de dados configurado com sucesso!', 
-                logs: data.logs || ['Sucesso ao configurar banco via Backend.'] 
-            };
+            return { success: true, message: 'Banco de dados configurado com sucesso!', logs: ['Conectado ao Backend', 'Schema executado', 'Tabelas criadas'] };
         } else {
-            return { 
-                success: false, 
-                message: data.message || 'Erro desconhecido no backend.', 
-                logs: data.logs || [data.message] 
-            };
+            return { success: false, message: data.message, logs: data.logs || [] };
         }
     } catch (error: any) {
         return { 
