@@ -6,8 +6,9 @@ import path from 'path';
 import https from 'https';
 import axios from 'axios';
 import multer from 'multer';
+import pg from 'pg'; // Importando pg aqui onde está instalado
 import { fileURLToPath } from 'url';
-// Importa o migrator com a extensão .js obrigatória em ESM
+// Importa o migrator
 import { runMigration } from '../maatcontabil_dbtools/migrator.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -23,23 +24,24 @@ app.use(bodyParser.json());
 // Configuração de Upload para Certificados
 const upload = multer({ dest: 'certs/' });
 
-// Estado em memória da conexão DB (para a sessão atual do servidor)
+// Estado em memória da conexão DB
 let dbConfigCache = null;
 
 // --- ROTA 1: Setup do Banco de Dados ---
 app.post('/api/setup-db', async (req, res) => {
     const config = req.body;
     try {
-        await runMigration(config);
-        dbConfigCache = config; // Salva para uso nas outras rotas
+        // Injeção de Dependência: Passamos a classe Client do 'pg' para o migrator
+        await runMigration(config, pg.Client);
+        dbConfigCache = config; 
         res.json({ success: true, message: 'Banco configurado com sucesso!' });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ success: false, message: error.message, logs: [error.toString()] });
     }
 });
 
 // --- ROTA 2: Upload de Certificados Inter ---
-// Salva como 'certificado.crt' e 'chave.key' na pasta certs
 app.post('/api/upload-cert', upload.fields([{ name: 'crt' }, { name: 'key' }]), (req, res) => {
     try {
         if (req.files['crt']) {
@@ -121,11 +123,6 @@ app.post('/webhook/pix', (req, res) => {
     const pixList = req.body.pix;
     console.log('--- WEBHOOK RECEBIDO ---');
     console.log(JSON.stringify(req.body, null, 2));
-
-    if (pixList) {
-        // Aqui você conectaria no PG para atualizar o status
-    }
-
     res.status(200).send('OK');
 });
 

@@ -1,5 +1,3 @@
-import pg from 'pg';
-const { Client } = pg;
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -7,7 +5,8 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export async function runMigration(dbConfig) {
+// Agora recebemos a classe 'Client' como argumento, removendo a necessidade de importar 'pg' aqui
+export async function runMigration(dbConfig, Client) {
     console.log('--- Iniciando Migração de Banco de Dados ---');
     
     // 1. Conecta no banco 'postgres' padrão para checar/criar o banco alvo
