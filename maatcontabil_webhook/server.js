@@ -1,12 +1,17 @@
-const express = require('express');
-const cors = require('cors');
-const bodyParser = require('body-parser');
-const fs = require('fs');
-const path = require('path');
-const https = require('https');
-const axios = require('axios');
-const multer = require('multer'); // Para upload de certificados
-const { runMigration } = require('../maatcontabil_dbtools/migrator');
+import express from 'express';
+import cors from 'cors';
+import bodyParser from 'body-parser';
+import fs from 'fs';
+import path from 'path';
+import https from 'https';
+import axios from 'axios';
+import multer from 'multer';
+import { fileURLToPath } from 'url';
+// Importa o migrator com a extensão .js obrigatória em ESM
+import { runMigration } from '../maatcontabil_dbtools/migrator.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = 3001;
@@ -119,8 +124,6 @@ app.post('/webhook/pix', (req, res) => {
 
     if (pixList) {
         // Aqui você conectaria no PG para atualizar o status
-        // const client = new pg.Client(dbConfigCache)...
-        // await client.query('UPDATE service_requests SET status = ... WHERE txid = ...')
     }
 
     res.status(200).send('OK');
