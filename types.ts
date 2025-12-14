@@ -64,6 +64,7 @@ export interface User {
   photoUrl?: string;
   address?: string;
   phone?: string;
+  cpf?: string;
 }
 
 export interface RequestAttachment {

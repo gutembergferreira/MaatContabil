@@ -13,8 +13,8 @@ import UserProfile from './components/UserProfile';
 import DatabaseSetup from './components/DatabaseSetup'; 
 import Login from './components/Login'; 
 import { Role, User } from './types';
-import { getUsers } from './services/mockData';
-import { isDbInitialized, checkBackendHealth, resetSystem } from './services/dbService';
+import { getUsers, fetchInitialData } from './services/mockData';
+import { isDbInitialized, checkBackendHealth } from './services/dbService';
 
 const App: React.FC = () => {
   // Application State Flow
@@ -32,14 +32,11 @@ const App: React.FC = () => {
     // Initialization Logic: Check Local Flag AND Backend Status
     const init = async () => {
         const localFlag = isDbInitialized();
-        
-        // Verifica se o backend realmente está conectado
         const backendReady = await checkBackendHealth();
 
         if (localFlag && backendReady) {
             setAppState('login');
         } else {
-            // Se backend não está pronto, forçamos setup (mesmo que localStorage diga que sim)
             if (localFlag && !backendReady) {
                 console.warn('Frontend diz configurado, mas Backend está offline/desconectado. Forçando Setup.');
             }
@@ -53,6 +50,7 @@ const App: React.FC = () => {
   useEffect(() => {
      if (appState === 'running' && currentUser) {
          if (role === 'admin') {
+             // Re-fetch users from memory to ensure admin exists
              const admin = getUsers().find(u => u.role === 'admin');
              if(admin) setCurrentUser(admin);
              setCurrentCompanyId('c1');
@@ -66,12 +64,18 @@ const App: React.FC = () => {
      }
   }, [role]);
 
-  const handleLoginSuccess = (role: Role) => {
+  const handleLoginSuccess = async (role: Role) => {
+      // Sync DB Data right after login
+      await fetchInitialData();
+      
       const user = getUsers().find(u => u.role === role);
       if (user) {
           setCurrentUser(user);
           setRole(role);
           setAppState('running');
+      } else {
+          // Fallback se o usuário não vier no sync
+          console.error("Usuário não encontrado após sync");
       }
   };
 
