@@ -50,7 +50,6 @@ const App: React.FC = () => {
   useEffect(() => {
      if (appState === 'running' && currentUser) {
          if (role === 'admin') {
-             // Re-fetch users from memory to ensure admin exists
              const admin = getUsers().find(u => u.role === 'admin');
              if(admin) setCurrentUser(admin);
              setCurrentCompanyId('c1');
@@ -64,19 +63,21 @@ const App: React.FC = () => {
      }
   }, [role]);
 
-  const handleLoginSuccess = async (role: Role) => {
-      // Sync DB Data right after login
-      await fetchInitialData();
-      
-      const user = getUsers().find(u => u.role === role);
-      if (user) {
-          setCurrentUser(user);
-          setRole(role);
-          setAppState('running');
-      } else {
-          // Fallback se o usuário não vier no sync
-          console.error("Usuário não encontrado após sync");
+  const handleLoginSuccess = async (userObj: User) => {
+      // 1. Set user immediately from login response
+      setCurrentUser(userObj);
+      setRole(userObj.role);
+      if (userObj.companyId) setCurrentCompanyId(userObj.companyId);
+
+      // 2. Try to sync other data in background
+      try {
+          await fetchInitialData();
+      } catch (e) {
+          console.error("Sync data failed, but session is active.");
       }
+      
+      // 3. Start the app
+      setAppState('running');
   };
 
   const handleProfileUpdate = () => {
@@ -97,17 +98,14 @@ const App: React.FC = () => {
       );
   }
 
-  // --- STATE 1: DATABASE SETUP ---
   if (appState === 'setup') {
       return <DatabaseSetup onComplete={() => setAppState('login')} />;
   }
 
-  // --- STATE 2: LOGIN ---
   if (appState === 'login') {
       return <Login onLogin={handleLoginSuccess} />;
   }
 
-  // --- STATE 3: RUNNING APP ---
   if (!currentUser) return null;
 
   const renderContent = () => {

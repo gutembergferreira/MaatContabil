@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { User, Lock, ArrowRight, Scale, AlertCircle, RotateCcw } from 'lucide-react';
 import { loginUser } from '../services/mockData';
 import { resetSystem } from '../services/dbService';
+import { User as UserType } from '../types';
 
 interface LoginProps {
-    onLogin: (role: 'admin' | 'client') => void;
+    onLogin: (user: UserType) => void;
 }
 
 const Login: React.FC<LoginProps> = ({ onLogin }) => {
@@ -18,15 +19,18 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         setError('');
         setLoading(true);
         
-        const user = await loginUser(email, password);
-        
-        if (user) {
-            // Sucesso
-            onLogin(user.role as any);
-        } else {
-            setError('Falha no login. Verifique credenciais ou conexão com banco.');
+        try {
+            const user = await loginUser(email, password);
+            if (user) {
+                onLogin(user);
+            } else {
+                setError('Falha no login. Verifique credenciais ou conexão com banco.');
+            }
+        } catch (err) {
+            setError('Erro ao conectar ao servidor backend.');
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     return (

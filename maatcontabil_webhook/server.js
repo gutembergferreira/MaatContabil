@@ -249,26 +249,35 @@ app.post('/api/setup-db', async (req, res) => {
 
 app.get('/api/status', (req, res) => res.json({ configured: !!dbPool }));
 
-// SYNC ALL DATA
+// FUNÇÃO AUXILIAR PARA QUERY SEGURA (Não quebra o sync se a tabela não existir)
+async function safeQuery(query, params = []) {
+    if (!dbPool) return { rows: [] };
+    try {
+        return await dbPool.query(query, params);
+    } catch (e) {
+        console.warn(`SafeQuery Warning: ${e.message}`);
+        return { rows: [] };
+    }
+}
+
 app.get('/api/sync', async (req, res) => {
     if (!dbPool) return res.status(500).json({ error: 'DB not connected' });
     try {
-        const companies = await dbPool.query('SELECT id, name, cnpj, address, contact_info as contact FROM companies');
-        const users = await dbPool.query('SELECT id, full_name as name, email, password_hash as password, role, company_id as "companyId", cpf, photo_url as "photoUrl" FROM users');
-        const reqTypes = await dbPool.query('SELECT id, name, base_price as price FROM request_types');
-        const docCats = await dbPool.query('SELECT name FROM document_categories WHERE active = true');
-        const requests = await dbPool.query('SELECT sr.*, rt.name as type FROM service_requests sr LEFT JOIN request_types rt ON sr.request_type_id = rt.id');
-        const attachments = await dbPool.query('SELECT id, entity_type as "entityType", entity_id as "entityId", file_name as name, file_url as url, uploaded_by as "uploadedBy", created_at as "createdAt" FROM request_attachments');
-        const documents = await dbPool.query('SELECT * FROM documents');
-        const chat = await dbPool.query('SELECT entity_id as "entityId", sender_name as sender, role, message as text, created_at as timestamp FROM chat_messages');
-        const notifs = await dbPool.query('SELECT id, user_id as "userId", title, message, is_read as read, created_at as timestamp FROM notifications');
+        const companies = await safeQuery('SELECT id, name, cnpj, address, contact_info as contact FROM companies');
+        const users = await safeQuery('SELECT id, full_name as name, email, password_hash as password, role, company_id as "companyId", cpf, photo_url as "photoUrl" FROM users');
+        const reqTypes = await safeQuery('SELECT id, name, base_price as price FROM request_types');
+        const docCats = await safeQuery('SELECT name FROM document_categories WHERE active = true');
+        const requests = await safeQuery('SELECT sr.*, rt.name as type FROM service_requests sr LEFT JOIN request_types rt ON sr.request_type_id = rt.id');
+        const attachments = await safeQuery('SELECT id, entity_type as "entityType", entity_id as "entityId", file_name as name, file_url as url, uploaded_by as "uploadedBy", created_at as "createdAt" FROM request_attachments');
+        const documents = await safeQuery('SELECT * FROM documents');
+        const chat = await safeQuery('SELECT entity_id as "entityId", sender_name as sender, role, message as text, created_at as timestamp FROM chat_messages');
+        const notifs = await safeQuery('SELECT id, user_id as "userId", title, message, is_read as read, created_at as timestamp FROM notifications');
         
-        // HR SYNC
-        const workSites = await dbPool.query('SELECT id, company_id as "companyId", name, description FROM work_sites');
-        const employees = await dbPool.query('SELECT id, company_id as "companyId", work_site_id as "workSiteId", name, role, admission_date as "admissionDate", status, salary, cpf, rg, pis, email, phone, vacation_due as "vacationDue" FROM employees');
-        const hrAdmissions = await dbPool.query('SELECT id, company_id as "companyId", client_id as "clientId", status, full_name as "fullName", cpf, rg, birth_date as "birthDate", gender, marital_status as "maritalStatus", role, salary, work_site_id as "workSiteId", expected_start_date as "expectedStartDate", pis, titulo_eleitor as "tituloEleitor", ctps, address, created_at as "createdAt", updated_at as "updatedAt" FROM hr_admissions');
-        const hrRequests = await dbPool.query('SELECT id, employee_id as "employeeId", company_id as "companyId", client_id as "clientId", type, status, details, created_at as "createdAt", updated_at as "updatedAt" FROM hr_requests');
-        const fieldFeedback = await dbPool.query('SELECT id, target_id as "targetId", field_name as "fieldName", message, resolved FROM hr_field_feedback');
+        const workSites = await safeQuery('SELECT id, company_id as "companyId", name, description FROM work_sites');
+        const employees = await safeQuery('SELECT id, company_id as "companyId", work_site_id as "workSiteId", name, role, admission_date as "admissionDate", status, salary, cpf, rg, pis, email, phone, vacation_due as "vacationDue" FROM employees');
+        const hrAdmissions = await safeQuery('SELECT id, company_id as "companyId", client_id as "clientId", status, full_name as "fullName", cpf, rg, birth_date as "birthDate", gender, marital_status as "maritalStatus", role, salary, work_site_id as "workSiteId", expected_start_date as "expectedStartDate", pis, titulo_eleitor as "tituloEleitor", ctps, address, created_at as "createdAt", updated_at as "updatedAt" FROM hr_admissions');
+        const hrRequests = await safeQuery('SELECT id, employee_id as "employeeId", company_id as "companyId", client_id as "clientId", type, status, details, created_at as "createdAt", updated_at as "updatedAt" FROM hr_requests');
+        const fieldFeedback = await safeQuery('SELECT id, target_id as "targetId", field_name as "fieldName", message, resolved FROM hr_field_feedback');
 
         res.json({
             companies: companies.rows,
@@ -286,10 +295,12 @@ app.get('/api/sync', async (req, res) => {
             hrRequests: hrRequests.rows,
             fieldFeedback: fieldFeedback.rows
         });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) { 
+        console.error("Sync Error:", e);
+        res.status(500).json({ error: e.message }); 
+    }
 });
 
-// HR POST/PUT ENDPOINTS
 app.post('/api/hr/admission', async (req, res) => {
     if (!dbPool) return res.status(500).json({ error: 'DB not connected' });
     const { id, companyId, clientId, status, fullName, cpf, rg, birthDate, gender, maritalStatus, role, salary, workSiteId, expectedStartDate, pis, tituloEleitor, ctps, address } = req.body;
@@ -377,7 +388,7 @@ app.post('/api/pix', async (req, res) => {
         const cleanCpf = (requestData.cpf || '').replace(/\D/g, '');
         const cob = await axios.post('https://cdpj.partners.bancointer.com.br/pix/v2/cob', {
             calendario: { expiracao: 3600 },
-            devedor: { cpf: cleanCpf, nome: requestData.name },
+            devedor: { cpf: cleanCpf, name: requestData.name },
             valor: { original: amount.toFixed(2) },
             chave: pixKey,
             solicitacaoPagador: `Servico ${protocol}`
