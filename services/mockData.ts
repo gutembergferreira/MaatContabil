@@ -1,4 +1,3 @@
-
 import { Routine, Document, Company, User, Notification, ChatMessage, AuditLog, ServiceRequest, RequestTypeConfig, PaymentConfig, RequestAttachment, Employee, WorkSite, HRAdmission, HRRequest, HRFieldFeedback } from '../types';
 
 let USERS: User[] = [];
@@ -38,7 +37,7 @@ export const fetchInitialData = async () => {
 
         REQUESTS = data.requests.map((r: any) => ({
             ...r,
-            attachments: data.attachments.filter((a: any) => a.entity_id === r.id && a.entity_type === 'request'),
+            attachments: data.attachments.filter((a: any) => a.entityId === r.id && a.entityType === 'request'),
             chat: data.chat.filter((c: any) => c.entityId === r.id),
             auditLog: []
         }));
@@ -82,7 +81,6 @@ export const getCategories = () => CATEGORIES;
 export const getRequestTypes = () => REQUEST_TYPES;
 export const getDocuments = (companyId: string) => DOCUMENTS.filter(d => d.companyId === companyId);
 
-// Fixed: Added includeDeleted parameter and logic
 export const getServiceRequests = (companyId?: string, includeDeleted = false) => {
     let reqs = REQUESTS;
     if (companyId) reqs = reqs.filter(r => r.companyId === companyId);
@@ -90,12 +88,8 @@ export const getServiceRequests = (companyId?: string, includeDeleted = false) =
     return reqs;
 };
 
-// Added: Missing function required by RequestManager
 export const getDeletedServiceRequests = () => REQUESTS.filter(r => r.deleted);
-
 export const getNotifications = (userId: string) => NOTIFICATIONS.filter(n => n.userId === userId);
-
-// Added: Missing function required by CommunicationCenter
 export const getAllNotifications = () => NOTIFICATIONS;
 
 // HR GETTERS
@@ -105,15 +99,62 @@ export const getHRAdmissions = (companyId: string) => HR_ADMISSIONS.filter(a => 
 export const getHRRequests = (companyId: string) => HR_REQUESTS.filter(r => r.companyId === companyId);
 export const getFieldFeedback = (targetId: string) => FIELD_FEEDBACK.filter(f => f.targetId === targetId);
 
-// MUTATIONS
-export const addHRAdmission = (adm: HRAdmission) => { HR_ADMISSIONS = [adm, ...HR_ADMISSIONS]; };
-export const updateHRAdmission = (adm: HRAdmission) => { HR_ADMISSIONS = HR_ADMISSIONS.map(a => a.id === adm.id ? adm : a); };
-export const addHRRequest = (req: HRRequest) => { HR_REQUESTS = [req, ...HR_REQUESTS]; };
-export const updateHRRequest = (req: HRRequest) => { HR_REQUESTS = HR_REQUESTS.map(r => r.id === req.id ? req : r); };
-export const addFieldFeedback = (f: HRFieldFeedback) => { FIELD_FEEDBACK = [...FIELD_FEEDBACK, f]; };
-export const resolveFieldFeedback = (id: string) => { FIELD_FEEDBACK = FIELD_FEEDBACK.map(f => f.id === id ? {...f, resolved: true} : f); };
-export const addWorkSite = (ws: WorkSite) => { WORK_SITES = [...WORK_SITES, ws]; };
-export const addEmployee = (e: Employee) => { EMPLOYEES = [...EMPLOYEES, e]; };
+// HR MUTATIONS (PERSISTENT)
+export const addHRAdmission = async (adm: HRAdmission) => { 
+    await fetch(`${API_URL}/hr/admission`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(adm)
+    });
+    await fetchInitialData();
+};
+export const updateHRAdmission = async (adm: HRAdmission) => { 
+    await fetch(`${API_URL}/hr/admission`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(adm)
+    });
+    await fetchInitialData();
+};
+export const addHRRequest = async (req: HRRequest) => { 
+    await fetch(`${API_URL}/hr/request`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(req)
+    });
+    await fetchInitialData();
+};
+export const updateHRRequest = async (req: HRRequest) => { 
+    await fetch(`${API_URL}/hr/request`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(req)
+    });
+    await fetchInitialData();
+};
+export const addFieldFeedback = async (f: HRFieldFeedback) => { 
+    await fetch(`${API_URL}/hr/feedback`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(f)
+    });
+    await fetchInitialData();
+};
+export const resolveFieldFeedback = async (id: string) => { 
+    const feedback = FIELD_FEEDBACK.find(f => f.id === id);
+    if (feedback) {
+        await addFieldFeedback({...feedback, resolved: true});
+    }
+};
+export const addWorkSite = async (ws: WorkSite) => { 
+    await fetch(`${API_URL}/hr/worksite`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(ws)
+    });
+    await fetchInitialData();
+};
+export const addEmployee = async (e: Employee) => { 
+    await fetch(`${API_URL}/hr/employee`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(e)
+    });
+    await fetchInitialData();
+};
 
 export const getPaymentConfig = () => {
     const saved = localStorage.getItem('maat_payment_config');
@@ -138,7 +179,7 @@ export const generatePixCharge = async (reqId: string, amount: number) => {
     } catch (error: any) { throw error; }
 };
 
-// HELPERS / PERSISTENCE (Updating placeholders to support UI)
+// HELPERS / PERSISTENCE (Existing placeholders)
 export const MOCK_ROUTINES: Routine[] = [];
 export const MOCK_EMPLOYEES = [];
 export const CURRENT_CLIENT = { id: 'c1', name: 'Empresa Demo', financials: { revenueMonth: 0, revenueYear: 0, receivables: 0, payables: 0, nextTaxDeadline: '' } };

@@ -6,9 +6,9 @@ import {
     getRequestTypes, addRequestType, deleteRequestType, 
     getPaymentConfig, updatePaymentConfig, testPixConnection
 } from '../services/mockData';
-import { Trash2, Plus, RotateCcw, CheckCircle, AlertTriangle, RefreshCw, Server, Upload } from 'lucide-react';
+import { Trash2, Plus, RotateCcw, CheckCircle, AlertTriangle, RefreshCw, Server, Upload, Database as DbIcon } from 'lucide-react';
 import { RequestTypeConfig, PaymentConfig } from '../types';
-import { getDbConfig, resetSystem } from '../services/dbService';
+import { getDbConfig, resetSystem, initializeDatabase } from '../services/dbService';
 
 const SettingsManager: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'categories' | 'requestTypes' | 'companies' | 'users' | 'payments' | 'database'>('categories');
@@ -29,6 +29,7 @@ const SettingsManager: React.FC = () => {
   
   // DB Config Display
   const [dbConfig, setDbConfig] = useState(getDbConfig());
+  const [syncingDb, setSyncingDb] = useState(false);
 
   // Upload Logic
   const [uploadState, setUploadState] = useState({ crt: false, key: false });
@@ -102,8 +103,18 @@ const SettingsManager: React.FC = () => {
           setTestMessage(result.message);
       }
   };
+
+  const handleSyncDb = async () => {
+      if (!dbConfig) return;
+      setSyncingDb(true);
+      try {
+          const res = await initializeDatabase(dbConfig);
+          if (res.success) alert('Banco de dados sincronizado com sucesso!');
+          else alert('Erro na sincronização: ' + res.message);
+      } catch (e) { alert('Erro ao conectar com servidor.'); }
+      setSyncingDb(false);
+  };
   
-  // ... Handlers simples
   const handleAddCategory = () => { if (newCatName.trim()) { addCategory(newCatName.trim()); setCategories(getCategories()); setNewCatName(''); } };
   const handleDeleteCategory = (cat: string) => { if (confirm(`Excluir ${cat}?`)) { deleteCategory(cat); setCategories(getCategories()); } };
   const handleAddRequestType = () => { if (newReqType.trim()) { addRequestType({id: Date.now().toString(), name: newReqType.trim(), price: newReqPrice}); setRequestTypes(getRequestTypes()); setNewReqType(''); } };
@@ -121,7 +132,7 @@ const SettingsManager: React.FC = () => {
                 onClick={() => setActiveTab(tab as any)} 
                 className={`pb-3 px-4 text-sm font-medium border-b-2 capitalize transition-colors ${activeTab === tab ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
             >
-                {tab === 'requestTypes' ? 'Serviços' : tab}
+                {tab === 'requestTypes' ? 'Serviços' : tab === 'database' ? 'Banco de Dados' : tab}
             </button>
         ))}
       </div>
@@ -275,9 +286,9 @@ const SettingsManager: React.FC = () => {
         )}
 
         {activeTab === 'database' && (
-             <div className="max-w-xl bg-white p-6 rounded-xl border border-slate-200">
+             <div className="max-w-xl bg-white p-6 rounded-xl border border-slate-200 space-y-6">
                  <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Server size={20}/> Status do Banco de Dados</h3>
-                 <div className="mb-6 space-y-2 text-sm">
+                 <div className="space-y-2 text-sm">
                      <div className="flex justify-between border-b border-slate-100 py-2">
                          <span className="text-slate-500">Host</span>
                          <span className="font-mono text-slate-800">{dbConfig?.host || 'Não configurado'}</span>
@@ -286,14 +297,26 @@ const SettingsManager: React.FC = () => {
                          <span className="text-slate-500">Database</span>
                          <span className="font-mono text-slate-800">{dbConfig?.dbName || '-'}</span>
                      </div>
-                     <div className="flex justify-between border-b border-slate-100 py-2">
-                         <span className="text-slate-500">Usuário</span>
-                         <span className="font-mono text-slate-800">{dbConfig?.user || '-'}</span>
-                     </div>
                  </div>
-                 <button onClick={handleResetDb} className="bg-slate-800 text-white w-full py-3 rounded-lg flex items-center justify-center gap-2 hover:bg-slate-900 transition-colors">
-                     <RotateCcw size={18}/> Resetar Conexão Local
-                 </button>
+                 
+                 <div className="grid grid-cols-1 gap-3">
+                    <button 
+                        onClick={handleSyncDb} 
+                        disabled={syncingDb}
+                        className="bg-blue-600 text-white w-full py-3 rounded-lg flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors disabled:opacity-50"
+                    >
+                        {syncingDb ? <RefreshCw className="animate-spin" size={18}/> : <DbIcon size={18}/>}
+                        {syncingDb ? 'Sincronizando...' : 'Sincronizar Estrutura do Banco'}
+                    </button>
+                    
+                    <button onClick={handleResetDb} className="bg-slate-800 text-white w-full py-3 rounded-lg flex items-center justify-center gap-2 hover:bg-slate-900 transition-colors">
+                        <RotateCcw size={18}/> Resetar Conexão Local (Setup)
+                    </button>
+                 </div>
+
+                 <p className="text-[10px] text-slate-400 italic text-center">
+                    Use o botão "Sincronizar" sempre que houver atualizações na estrutura do sistema.
+                 </p>
              </div>
         )}
       </div>
