@@ -1,6 +1,8 @@
+
 import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+// Guideline: Always use a named parameter for apiKey and obtain exclusively from process.env.API_KEY.
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const generateCommunication = async (
   topic: string,
@@ -16,8 +18,9 @@ export const generateCommunication = async (
       O texto deve ser profissional, claro e direto. Não inclua saudações genéricas como "Olá [Nome do Cliente]", comece o corpo do texto.
     `;
 
+    // Guideline: Use 'gemini-3-flash-preview' for basic text tasks.
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
     });
 
@@ -35,8 +38,9 @@ export const analyzePendingIssues = async (clientData: string): Promise<string> 
           Dados: ${clientData}
           Seja breve e técnico.
         `;
+        // Guideline: Use 'gemini-3-flash-preview' for basic text tasks.
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3-flash-preview',
             contents: prompt,
         });
         return response.text || 'Análise indisponível.';

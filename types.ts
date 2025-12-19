@@ -1,14 +1,11 @@
 export type Role = 'admin' | 'client';
-
 export type Department = 'Contábil' | 'Fiscal' | 'Pessoal' | 'Legalização';
-
 export type DocCategory = string;
 
-// Changed to object to support price/config
 export interface RequestTypeConfig {
   id: string;
   name: string;
-  price: number; // 0 = free
+  price: number;
 }
 
 export type DocStatus = 'Enviado' | 'Visualizado';
@@ -17,17 +14,100 @@ export type PaymentStatus = 'Pago' | 'Aberto' | 'N/A';
 export type RequestStatus = 'Pendente Pagamento' | 'Pagamento em Análise' | 'Solicitada' | 'Visualizada' | 'Em Resolução' | 'Em Validação' | 'Resolvido';
 export type RequestPaymentStatus = 'Pendente' | 'Em Análise' | 'Aprovado' | 'N/A';
 
+// --- HR SPECIFIC TYPES ---
+export type HRAdmissionStatus = 'Novo' | 'Validando' | 'Formulario com Erro' | 'Validado' | 'Finalizado';
+export type HRRequestType = 'Férias' | 'Demissão' | 'Atestado';
+export type HRRequestStatus = 'Solicitado' | 'Em Analise' | 'Pendencia' | 'Agendado' | 'Finalizado';
+
+export interface WorkSite {
+    id: string;
+    companyId: string;
+    name: string;
+    description?: string;
+}
+
+export interface Employee {
+    id: string;
+    companyId: string;
+    workSiteId?: string;
+    name: string;
+    role: string;
+    admissionDate: string;
+    status: 'Ativo' | 'Afastado' | 'Desligado';
+    salary: number;
+    cpf: string;
+    rg?: string;
+    pis?: string;
+    phone?: string;
+    email?: string;
+    vacationDue: string;
+}
+
+export interface HRFieldFeedback {
+    id: string;
+    targetId: string; // ID da admissão ou solicitação
+    fieldName: string;
+    message: string;
+    resolved: boolean;
+}
+
+export interface HRAdmission {
+    id: string;
+    companyId: string;
+    status: HRAdmissionStatus;
+    
+    // Dados Pessoais
+    fullName: string;
+    cpf: string;
+    rg: string;
+    birthDate: string;
+    gender: string;
+    maritalStatus: string;
+    
+    // Contratual
+    role: string;
+    salary: number;
+    workSiteId: string;
+    expectedStartDate: string;
+    
+    // Documentação Extra
+    pis?: string;
+    tituloEleitor?: string;
+    ctps?: string;
+    address: string;
+    
+    clientId: string;
+    createdAt: string;
+    updatedAt: string;
+    feedback?: HRFieldFeedback[];
+}
+
+export interface HRRequest {
+    id: string;
+    employeeId: string;
+    companyId: string;
+    type: HRRequestType;
+    status: HRRequestStatus;
+    details: any; // Campos específicos por tipo (json)
+    clientId: string;
+    createdAt: string;
+    updatedAt: string;
+    feedback?: HRFieldFeedback[];
+}
+
+// --- REST OF TYPES ---
+
 export interface InterCredentials {
   clientId: string;
   clientSecret: string;
-  certificateUploaded: boolean; // Mock check for .crt and .key
+  certificateUploaded: boolean;
   pixKey: string;
 }
 
 export interface PaymentConfig {
-  environment: 'sandbox' | 'production'; // Added environment toggle
+  environment: 'sandbox' | 'production';
   enablePix: boolean;
-  enableGateway: boolean; // Future placeholder
+  enableGateway: boolean;
   inter: InterCredentials;
 }
 
@@ -58,9 +138,9 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  password?: string; // In real app, hashed
+  password?: string;
   role: Role;
-  companyId?: string; // If client
+  companyId?: string;
   photoUrl?: string;
   address?: string;
   phone?: string;
@@ -70,8 +150,8 @@ export interface User {
 export interface RequestAttachment {
   id: string;
   name: string;
-  url: string; // Mock URL
-  uploadedBy: string; // User name
+  url: string;
+  uploadedBy: string;
   createdAt: string;
 }
 
@@ -79,40 +159,36 @@ export interface Document {
   id: string;
   title: string;
   category: DocCategory;
-  date: string; // ISO date
+  date: string;
   companyId: string;
   url?: string;
   status: DocStatus;
   paymentStatus: PaymentStatus; 
   amount?: number;
   competence?: string; 
-  attachments?: RequestAttachment[]; // Added to match Request structure
+  attachments?: RequestAttachment[];
   chat: ChatMessage[];
   auditLog: AuditLog[];
 }
 
 export interface ServiceRequest {
   id: string;
-  protocol: string; // e.g., SRV-2024-001
+  protocol: string;
   title: string;
-  type: string; // Name of the type
+  type: string;
   price: number;
   description: string;
-  
   status: RequestStatus;
   paymentStatus: RequestPaymentStatus;
-  
-  // PIX Fields
   txid?: string;
   pixCopiaECola?: string;
-  pixExpiration?: string; // ISO Date for expiration (60 mins)
-
+  pixExpiration?: string;
   clientId: string;
   companyId: string;
   createdAt: string;
   updatedAt: string;
-  deleted: boolean; // Soft delete
-  attachments: RequestAttachment[]; // Added attachments
+  deleted: boolean;
+  attachments: RequestAttachment[];
   chat: ChatMessage[];
   auditLog: AuditLog[];
 }
@@ -131,7 +207,7 @@ export interface Routine {
   title: string;
   clientName: string;
   department: Department;
-  deadline: string; // ISO date
+  deadline: string;
   status: string;
-  competence: string; // e.g., "05/2024"
+  competence: string;
 }
