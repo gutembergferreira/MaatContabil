@@ -11,7 +11,9 @@ node_modules
 dist
 dist-ssr
 *.local
-
+maatcontabil_webhook/node_modules
+maatcontabil_webhook/uploads
+maatcontabil_webhook/certs
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -22,3 +24,5 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+node
+npm

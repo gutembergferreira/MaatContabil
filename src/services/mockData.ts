@@ -64,7 +64,7 @@ let NOTIFICATIONS: Notification[] = [
 ];
 
 // --- REAL BACKEND API URL ---
-const API_URL = 'http://localhost:3001/api';
+const API_URL = '/api';
 
 // --- Functions ---
 

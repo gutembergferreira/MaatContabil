@@ -1,4 +1,5 @@
 import { POSTGRES_SCHEMA } from './sqlSchema';
+import { getApiUrl } from './apiConfig';
 
 export interface DbConfig {
     host: string;
@@ -9,13 +10,9 @@ export interface DbConfig {
     ssl: boolean;
 }
 
-const DB_INITIALIZED_KEY = 'maat_db_initialized';
-const DB_CONFIG_KEY = 'maat_db_config';
-const API_URL = 'http://localhost:3001/api';
+let dbConfigCache: DbConfig | null = null;
 
-export const isDbInitialized = (): boolean => {
-    return localStorage.getItem(DB_INITIALIZED_KEY) === 'true';
-};
+export const isDbInitialized = (): boolean => true;
 
 export const checkBackendHealth = async (): Promise<boolean> => {
     try {
@@ -23,7 +20,7 @@ export const checkBackendHealth = async (): Promise<boolean> => {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 2000);
         
-        const res = await fetch(`${API_URL}/status`, { signal: controller.signal });
+        const res = await fetch(`${getApiUrl()}/status`, { signal: controller.signal });
         clearTimeout(timeoutId);
         
         if (!res.ok) return false;
@@ -37,35 +34,49 @@ export const checkBackendHealth = async (): Promise<boolean> => {
 };
 
 export const saveDbConfig = (config: DbConfig) => {
-    localStorage.setItem(DB_INITIALIZED_KEY, 'true');
-    localStorage.setItem(DB_CONFIG_KEY, JSON.stringify(config));
+    dbConfigCache = config;
 };
 
-export const getDbConfig = (): DbConfig | null => {
-    const saved = localStorage.getItem(DB_CONFIG_KEY);
-    if (saved) {
-        try {
-            return JSON.parse(saved);
-        } catch (e) {
-            console.error('Error parsing DB config', e);
-            return null;
-        }
+export const getDbConfig = (): DbConfig | null => dbConfigCache;
+
+export const loadDbConfigFromServer = async (): Promise<DbConfig | null> => {
+    try {
+        const res = await fetch(`${getApiUrl()}/db-config`);
+        if (!res.ok) return dbConfigCache;
+        const data = await res.json();
+        if (!data || !data.host) return dbConfigCache;
+        dbConfigCache = {
+            host: data.host,
+            port: data.port || '5432',
+            user: '',
+            pass: '',
+            dbName: data.dbName || '',
+            ssl: !!data.ssl
+        };
+        return dbConfigCache;
+    } catch {
+        return dbConfigCache;
     }
-    return null;
 };
 
 export const initializeDatabase = async (config: DbConfig): Promise<{success: boolean, message: string, logs: string[]}> => {
     try {
-        const response = await fetch(`${API_URL}/setup-db`, {
+        const response = await fetch(`${getApiUrl()}/setup-db`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(config)
         });
 
-        const data = await response.json();
+        let data: any = null;
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+            data = await response.json();
+        } else {
+            const text = await response.text();
+            data = text ? { success: false, message: text, logs: [] } : { success: false, message: 'Resposta vazia do servidor', logs: [] };
+        }
         
         if (data.success) {
-            saveDbConfig(config);
             return { success: true, message: 'Banco de dados configurado com sucesso!', logs: ['Conectado ao Backend', 'Schema executado', 'Tabelas criadas'] };
         } else {
             return { success: false, message: data.message, logs: data.logs || [] };
@@ -73,18 +84,16 @@ export const initializeDatabase = async (config: DbConfig): Promise<{success: bo
     } catch (error: any) {
         return { 
             success: false, 
-            message: 'ERRO CRÍTICO: Não foi possível conectar ao servidor Backend (Porta 3001).', 
+            message: 'ERRO CRITICO: Nao foi possivel conectar ao servidor Backend.', 
             logs: [
-                'Falha ao tentar: POST http://localhost:3001/api/setup-db',
+                `Falha ao tentar: POST ${getApiUrl()}/setup-db`,
                 `Erro técnico: ${error.message}`,
-                'Certifique-se de que o terminal do backend (maatcontabil_webhook) está rodando e sem erros.'
+                'Certifique-se de que o backend (maatcontabil_webhook) esta rodando e sem erros.'
             ] 
         };
     }
 };
 
 export const resetSystem = () => {
-    localStorage.removeItem(DB_INITIALIZED_KEY);
-    localStorage.removeItem(DB_CONFIG_KEY);
     window.location.reload();
 };

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { User, Lock, ArrowRight, Scale, AlertCircle, RotateCcw } from 'lucide-react';
+import { User, Lock, ArrowRight, Scale, AlertCircle } from 'lucide-react';
 import { loginUser } from '../services/mockData';
-import { resetSystem } from '../services/dbService';
 import { User as UserType } from '../types';
 
 interface LoginProps {
@@ -52,7 +51,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 <div className="w-full max-w-md space-y-8">
                     <div>
                         <h2 className="text-3xl font-bold text-slate-800">Bem-vindo</h2>
-                        <p className="text-slate-500 mt-2">Dados lidos diretamente do PostgreSQL</p>
+                        <p className="text-slate-500 mt-2">Use email (admin/cliente) ou CPF (funcionário)</p>
                     </div>
 
                     <form onSubmit={handleLogin} className="space-y-6">
@@ -62,15 +61,15 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                             </div>
                         )}
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Email ou CPF</label>
                             <div className="relative">
                                 <User className="absolute left-3 top-3 text-slate-400" size={20} />
                                 <input 
-                                    type="email" 
+                                    type="text" 
                                     value={email}
                                     onChange={e => setEmail(e.target.value)}
                                     className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
-                                    placeholder="admin@maat.com"
+                                    placeholder="admin@maat.com ou 00000000000"
                                 />
                             </div>
                         </div>
@@ -84,7 +83,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                                     value={password}
                                     onChange={e => setPassword(e.target.value)}
                                     className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
-                                    placeholder="•••••"
+                                    placeholder="Senha ou data nascimento (DDMMAAAA)"
                                 />
                             </div>
                         </div>
@@ -103,12 +102,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                         <div className="text-center text-xs text-slate-400">
                             Dica: Se resetou o banco, use <b>admin@maat.com</b> / <b>admin</b>
                         </div>
-                        <button 
-                            onClick={() => { if(confirm('Isso limpará as configurações locais e forçará a tela de setup. Continuar?')) resetSystem(); }}
-                            className="text-slate-400 hover:text-red-500 text-xs flex items-center gap-1 transition-colors"
-                        >
-                            <RotateCcw size={12}/> Resetar Configuração do Sistema
-                        </button>
                     </div>
                 </div>
             </div>

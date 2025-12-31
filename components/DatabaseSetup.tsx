@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Database, Server, Play, CheckCircle, Terminal, LogIn, AlertTriangle } from 'lucide-react';
-import { DbConfig, initializeDatabase, saveDbConfig } from '../services/dbService';
+import { DbConfig, initializeDatabase } from '../services/dbService';
 import { POSTGRES_SCHEMA } from '../services/sqlSchema';
 
 interface DatabaseSetupProps {
@@ -25,8 +25,6 @@ const DatabaseSetup: React.FC<DatabaseSetupProps> = ({ onComplete }) => {
         e.preventDefault();
         setStatus('running');
         setLogs(['Iniciando comunicação com Backend (Porta 3001)...']);
-        
-        saveDbConfig(config);
         
         const result = await initializeDatabase(config);
         

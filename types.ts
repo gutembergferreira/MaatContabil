@@ -1,4 +1,4 @@
-export type Role = 'admin' | 'client';
+export type Role = 'admin' | 'client' | 'employee';
 export type Department = 'Contábil' | 'Fiscal' | 'Pessoal' | 'Legalização';
 export type DocCategory = string;
 
@@ -16,8 +16,8 @@ export type RequestPaymentStatus = 'Pendente' | 'Em Análise' | 'Aprovado' | 'N/
 
 // --- HR SPECIFIC TYPES ---
 export type HRAdmissionStatus = 'Novo' | 'Validando' | 'Formulario com Erro' | 'Validado' | 'Finalizado';
-export type HRRequestType = 'Férias' | 'Demissão' | 'Atestado';
-export type HRRequestStatus = 'Solicitado' | 'Em Analise' | 'Pendencia' | 'Agendado' | 'Finalizado';
+export type HRRequestType = 'Férias' | 'Demissão' | 'Atestado' | 'Inclusão Dependente' | 'Atualização Cadastro';
+export type HRRequestStatus = 'Solicitado' | 'Em Analise' | 'Pendencia' | 'Agendado' | 'Finalizado' | 'Cancelado';
 
 export interface WorkSite {
     id: string;
@@ -33,14 +33,98 @@ export interface Employee {
     name: string;
     role: string;
     admissionDate: string;
-    status: 'Ativo' | 'Afastado' | 'Desligado';
+    status: 'Ativo' | 'Afastado' | 'Gozando Férias' | 'Inativo' | 'Desligado';
     salary: number;
     cpf: string;
     rg?: string;
     pis?: string;
+    birthDate?: string;
+    birthCity?: string;
+    birthState?: string;
+    nationality?: string;
+    motherName?: string;
+    fatherName?: string;
+    educationLevel?: string;
+    gender?: string;
+    maritalStatus?: string;
+    contractType?: string;
+    weeklyHours?: number;
+    shift?: string;
+    expectedStartDate?: string;
+    tituloEleitor?: string;
+    tituloEleitorZone?: string;
+    tituloEleitorSection?: string;
+    ctps?: string;
+    ctpsSeries?: string;
+    ctpsUf?: string;
+    reservista?: string;
     phone?: string;
     email?: string;
+    addressZip?: string;
+    addressStreet?: string;
+    addressNumber?: string;
+    addressComplement?: string;
+    addressDistrict?: string;
+    addressCity?: string;
+    addressState?: string;
+    address?: string;
+    emergencyContactName?: string;
+    emergencyContactPhone?: string;
+    bankName?: string;
+    bankAgency?: string;
+    bankAccount?: string;
+    bankAccountType?: string;
+    dependentsCount?: number;
+    dependentsNotes?: string;
     vacationDue: string;
+    photoUrl?: string;
+}
+
+export type TimeSheetStatus = 'Em Edicao' | 'Enviado' | 'Pendencia' | 'Aprovado' | 'Assinado';
+
+export interface TimeSheet {
+    id: string;
+    employeeId: string;
+    companyId: string;
+    periodStart: string;
+    periodEnd: string;
+    status: TimeSheetStatus;
+    approvedBy?: string;
+    approvedAt?: string;
+    signedAt?: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface TimeEntry {
+    id: string;
+    timeSheetId: string;
+    entryDate: string;
+    schedule?: string;
+    workHours?: string;
+    punches: string[];
+    situations: string[];
+    notes?: string;
+    updatedAt: string;
+}
+
+export interface TimeComment {
+    id: string;
+    timeEntryId: string;
+    authorId: string;
+    authorRole: Role;
+    message: string;
+    createdAt: string;
+}
+
+export interface Payroll {
+    id: string;
+    employeeId: string;
+    companyId: string;
+    competence: string;
+    status: string;
+    createdAt: string;
+    updatedAt: string;
 }
 
 export interface HRFieldFeedback {
@@ -61,11 +145,20 @@ export interface HRAdmission {
     cpf: string;
     rg: string;
     birthDate: string;
+    birthCity?: string;
+    birthState?: string;
+    nationality?: string;
+    motherName?: string;
+    fatherName?: string;
+    educationLevel?: string;
     gender: string;
     maritalStatus: string;
     
     // Contratual
     role: string;
+    contractType?: string;
+    weeklyHours?: number;
+    shift?: string;
     salary: number;
     workSiteId: string;
     expectedStartDate: string;
@@ -73,8 +166,30 @@ export interface HRAdmission {
     // Documentação Extra
     pis?: string;
     tituloEleitor?: string;
+    tituloEleitorZone?: string;
+    tituloEleitorSection?: string;
     ctps?: string;
+    ctpsSeries?: string;
+    ctpsUf?: string;
+    reservista?: string;
+    email?: string;
+    phone?: string;
+    addressZip?: string;
+    addressStreet?: string;
+    addressNumber?: string;
+    addressComplement?: string;
+    addressDistrict?: string;
+    addressCity?: string;
+    addressState?: string;
     address: string;
+    emergencyContactName?: string;
+    emergencyContactPhone?: string;
+    bankName?: string;
+    bankAgency?: string;
+    bankAccount?: string;
+    bankAccountType?: string;
+    dependentsCount?: number;
+    dependentsNotes?: string;
     
     clientId: string;
     createdAt: string;
@@ -130,6 +245,41 @@ export interface Company {
   cnpj: string;
   address: string;
   contact: string;
+  legalName?: string;
+  tradeName?: string;
+  nickname?: string;
+  active?: boolean;
+  taxRegime?: string;
+  companyGroup?: string;
+  honorarium?: string;
+  companyCode?: string;
+  addressStreet?: string;
+  addressNumber?: string;
+  addressComplement?: string;
+  addressZip?: string;
+  addressDistrict?: string;
+  addressCity?: string;
+  addressState?: string;
+  stateRegistration?: string;
+  stateRegistrationDate?: string;
+  stateRegistrationUf?: string;
+  stateExempt?: boolean;
+  nire?: string;
+  otherIdentifiers?: string;
+  phones?: string;
+  website?: string;
+  municipalRegistration?: string;
+  municipalRegistrationDate?: string;
+  notes?: string;
+  tags?: string;
+  contacts?: Array<{
+    id: string;
+    name: string;
+    role?: string;
+    phone?: string;
+    email?: string;
+  }>;
+  obligations?: string[];
 }
 
 export interface User {
@@ -143,6 +293,7 @@ export interface User {
   address?: string;
   phone?: string;
   cpf?: string;
+  employeeId?: string;
 }
 
 export interface RequestAttachment {
@@ -151,7 +302,7 @@ export interface RequestAttachment {
   url: string;
   uploadedBy: string;
   createdAt: string;
-  entityType?: 'request' | 'admission' | 'hr_request';
+  entityType?: 'request' | 'admission' | 'hr_request' | 'notification' | 'employee_photo' | 'payroll' | 'time_sheet' | 'monthly_routine' | 'document';
   entityId?: string;
 }
 
@@ -210,4 +361,39 @@ export interface Routine {
   deadline: string;
   status: string;
   competence: string;
+}
+
+export type RoutineStatus = 'Pendente' | 'Concluido' | 'Atrasado' | 'Em Analise';
+
+export interface ObligationDefinition {
+  id: string;
+  name: string;
+  nickname?: string;
+  department?: string;
+  responsible?: string;
+  expectedMinutes?: number;
+  monthlyDue?: Record<string, string>;
+  reminderDays?: number;
+  reminderType?: string;
+  nonBusinessRule?: string;
+  saturdayBusiness?: boolean;
+  competenceRule?: string;
+  requiresRobot?: boolean;
+  hasFine?: boolean;
+  alertGuide?: boolean;
+  active?: boolean;
+}
+
+export interface MonthlyRoutine {
+  id: string;
+  companyId: string;
+  companyName: string;
+  obligationId: string;
+  obligationName: string;
+  department?: string;
+  competence: string;
+  deadline: string;
+  status: RoutineStatus;
+  updatedAt?: string;
+  createdAt?: string;
 }

@@ -11,10 +11,13 @@ import MonthlyRoutines from './components/MonthlyRoutines';
 import RequestManager from './components/RequestManager';
 import UserProfile from './components/UserProfile';
 import DatabaseSetup from './components/DatabaseSetup'; 
+import EmployeePortal from './components/EmployeePortal';
 import Login from './components/Login'; 
 import { Role, User } from './types';
-import { getUsers, fetchInitialData } from './services/mockData';
-import { isDbInitialized, checkBackendHealth } from './services/dbService';
+import { getUsers, fetchInitialData, loadApiBaseFromServer } from './services/mockData';
+import { checkBackendHealth } from './services/dbService';
+
+const CURRENT_USER_KEY = 'maat_current_user';
 
 const App: React.FC = () => {
   // Application State Flow
@@ -28,18 +31,33 @@ const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [currentCompanyId, setCurrentCompanyId] = useState<string>('c1');
 
+  const getDefaultPage = (userRole: Role) => userRole === 'employee' ? 'employee_clock' : 'dashboard';
+
   useEffect(() => {
     // Initialization Logic: Check Local Flag AND Backend Status
     const init = async () => {
-        const localFlag = isDbInitialized();
+        await loadApiBaseFromServer();
         const backendReady = await checkBackendHealth();
 
-        if (localFlag && backendReady) {
-            setAppState('login');
-        } else {
-            if (localFlag && !backendReady) {
-                console.warn('Frontend diz configurado, mas Backend está offline/desconectado. Forçando Setup.');
+        if (backendReady) {
+            const saved = localStorage.getItem(CURRENT_USER_KEY);
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    setCurrentUser(parsed);
+                    setRole(parsed.role);
+                    if (parsed.companyId) setCurrentCompanyId(parsed.companyId);
+                    setCurrentPage(getDefaultPage(parsed.role));
+                    setAppState('running');
+                    fetchInitialData().catch(() => null);
+                } catch (e) {
+                    localStorage.removeItem(CURRENT_USER_KEY);
+                    setAppState('login');
+                }
+            } else {
+                setAppState('login');
             }
+        } else {
             setAppState('setup');
         }
     };
@@ -49,25 +67,18 @@ const App: React.FC = () => {
   // Sync role updates
   useEffect(() => {
      if (appState === 'running' && currentUser) {
-         if (role === 'admin') {
-             const admin = getUsers().find(u => u.role === 'admin');
-             if(admin) setCurrentUser(admin);
-             setCurrentCompanyId('c1');
-         } else {
-             const client = getUsers().find(u => u.role === 'client');
-             if(client) {
-                 setCurrentUser(client);
-                 if (client.companyId) setCurrentCompanyId(client.companyId);
-             }
-         }
+         setRole(currentUser.role);
+         if (currentUser.companyId) setCurrentCompanyId(currentUser.companyId);
      }
-  }, [role]);
+  }, [appState, currentUser]);
 
   const handleLoginSuccess = async (userObj: User) => {
       // 1. Set user immediately from login response
       setCurrentUser(userObj);
       setRole(userObj.role);
       if (userObj.companyId) setCurrentCompanyId(userObj.companyId);
+      setCurrentPage(getDefaultPage(userObj.role));
+      localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(userObj));
 
       // 2. Try to sync other data in background
       try {
@@ -83,8 +94,17 @@ const App: React.FC = () => {
   const handleProfileUpdate = () => {
       if (currentUser) {
         const updated = getUsers().find(u => u.id === currentUser.id);
-        if (updated) setCurrentUser(updated);
+        if (updated) {
+            setCurrentUser(updated);
+            localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(updated));
+        }
       }
+  };
+
+  const handleLogout = () => {
+      localStorage.removeItem(CURRENT_USER_KEY);
+      setCurrentUser(null);
+      setAppState('login');
   };
 
   if (appState === 'loading') {
@@ -113,17 +133,35 @@ const App: React.FC = () => {
       case 'dashboard':
         return role === 'admin' ? <DashboardAdmin /> : <DashboardClient />;
       case 'routines':
-        return <MonthlyRoutines />; 
+        return <MonthlyRoutines role={role} currentCompanyId={currentCompanyId} />; 
       case 'documents':
         return <DocumentVault role={role} currentCompanyId={currentCompanyId} currentUser={currentUser} />;
       case 'requests':
         return <RequestManager role={role} currentUser={currentUser} currentCompanyId={currentCompanyId} />;
       case 'hr':
-        return <HRManagement role={role} />;
+        return <HRManagement role={role} currentUser={currentUser} currentCompanyId={currentCompanyId} initialTab="employees" />;
+      case 'hr_employees':
+        return <HRManagement role={role} currentUser={currentUser} currentCompanyId={currentCompanyId} initialTab="employees" />;
+      case 'hr_inactive':
+        return <HRManagement role={role} currentUser={currentUser} currentCompanyId={currentCompanyId} initialTab="inactive" />;
+      case 'hr_admissions':
+        return <HRManagement role={role} currentUser={currentUser} currentCompanyId={currentCompanyId} initialTab="admissions" />;
+      case 'hr_requests':
+        return <HRManagement role={role} currentUser={currentUser} currentCompanyId={currentCompanyId} initialTab="requests" />;
+      case 'hr_timesheets':
+        return <HRManagement role={role} currentUser={currentUser} currentCompanyId={currentCompanyId} initialTab="timesheets" />;
+      case 'hr_sites':
+        return <HRManagement role={role} currentUser={currentUser} currentCompanyId={currentCompanyId} initialTab="sites" />;
+      case 'employee_clock':
+        return <EmployeePortal currentUser={currentUser} initialTab="clock" />;
+      case 'employee_timesheet':
+        return <EmployeePortal currentUser={currentUser} initialTab="sheet" />;
+      case 'employee_payroll':
+        return <EmployeePortal currentUser={currentUser} initialTab="holerites" />;
       case 'communication':
         return <CommunicationCenter role={role} />;
       case 'settings':
-        return role === 'admin' ? <SettingsManager /> : <div>Acesso Negado</div>;
+        return role === 'admin' ? <SettingsManager currentUser={currentUser} /> : <div>Acesso Negado</div>;
       case 'notifications':
         return <NotificationPage userId={currentUser.id} />;
       case 'profile':
@@ -142,6 +180,7 @@ const App: React.FC = () => {
       currentCompanyId={currentCompanyId}
       setCurrentCompanyId={setCurrentCompanyId}
       currentUser={currentUser}
+      onLogout={handleLogout}
     >
       {renderContent()}
     </Layout>

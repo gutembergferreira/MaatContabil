@@ -4,13 +4,20 @@ import UserManager from './UserManager';
 import { 
     getCategories, addCategory, deleteCategory, 
     getRequestTypes, addRequestType, deleteRequestType, 
-    getPaymentConfig, updatePaymentConfig, testPixConnection
+    getPaymentConfig, updatePaymentConfig, testPixConnection,
+    getApiBaseUrl, loadApiBaseFromServer, saveApiBaseToServer, clearApiBaseOnServer, getApiUrl,
+    loginUser
 } from '../services/mockData';
 import { Trash2, Plus, RotateCcw, CheckCircle, AlertTriangle, RefreshCw, Server, Upload, Database as DbIcon } from 'lucide-react';
 import { RequestTypeConfig, PaymentConfig } from '../types';
-import { getDbConfig, resetSystem, initializeDatabase } from '../services/dbService';
+import { getDbConfig, loadDbConfigFromServer, resetSystem, initializeDatabase } from '../services/dbService';
+import { User } from '../types';
 
-const SettingsManager: React.FC = () => {
+interface SettingsManagerProps {
+    currentUser: User;
+}
+
+const SettingsManager: React.FC<SettingsManagerProps> = ({ currentUser }) => {
   const [activeTab, setActiveTab] = useState<'categories' | 'requestTypes' | 'companies' | 'users' | 'payments' | 'database'>('categories');
   
   // Categories State
@@ -30,6 +37,13 @@ const SettingsManager: React.FC = () => {
   // DB Config Display
   const [dbConfig, setDbConfig] = useState(getDbConfig());
   const [syncingDb, setSyncingDb] = useState(false);
+  const [apiBaseUrl, setApiBaseUrlState] = useState(getApiBaseUrl());
+  const [apiTestStatus, setApiTestStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [apiTestMessage, setApiTestMessage] = useState('');
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetPassword, setResetPassword] = useState('');
+  const [resetError, setResetError] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
 
   // Upload Logic
   const [uploadState, setUploadState] = useState({ crt: false, key: false });
@@ -40,7 +54,8 @@ const SettingsManager: React.FC = () => {
     setCategories(getCategories());
     setRequestTypes(getRequestTypes());
     setPaymentConfig(getPaymentConfig());
-    setDbConfig(getDbConfig());
+    loadDbConfigFromServer().then((config) => setDbConfig(config));
+    loadApiBaseFromServer().then((value) => setApiBaseUrlState(value));
     
     // Check local storage for upload status visual
     const savedUploads = localStorage.getItem('maat_cert_status');
@@ -64,7 +79,7 @@ const SettingsManager: React.FC = () => {
 
       try {
           // Upload to Backend
-          const res = await fetch('http://localhost:3001/api/upload-cert', {
+          const res = await fetch(`${getApiUrl()}/upload-cert`, {
               method: 'POST',
               body: formData
           });
@@ -85,7 +100,42 @@ const SettingsManager: React.FC = () => {
           }
 
       } catch (err) {
-          alert('Erro ao enviar arquivo para o servidor. Verifique se o backend (porta 3001) está rodando.');
+          alert('Erro ao enviar arquivo para o servidor. Verifique se o backend esta rodando.');
+      }
+  };
+
+  const handleApiSave = () => {
+      if (!apiBaseUrl.trim()) {
+          alert('Informe o endereco do servidor.');
+          return;
+      }
+      saveApiBaseToServer(apiBaseUrl)
+          .then(() => alert('Servidor atualizado. Recarregue a pagina para aplicar.'))
+          .catch(() => alert('Falha ao salvar configuracao do servidor.'));
+  };
+
+  const handleApiReset = () => {
+      clearApiBaseOnServer()
+          .then(() => {
+              setApiBaseUrlState(getApiBaseUrl());
+              alert('Configuracao removida. Recarregue a pagina para aplicar.');
+          })
+          .catch(() => alert('Falha ao remover configuracao.'));
+  };
+
+  const handleApiTest = async () => {
+      setApiTestStatus('loading');
+      setApiTestMessage('Testando conexao...');
+      try {
+          const trimmed = apiBaseUrl.trim().replace(/\/+$/, '');
+          const base = trimmed ? `${trimmed.replace(/\/api$/i, '')}/api` : '/api';
+          const res = await fetch(`${base}/status`);
+          if (!res.ok) throw new Error('Falha na conexao');
+          setApiTestStatus('success');
+          setApiTestMessage('Servidor respondeu com sucesso.');
+      } catch (e: any) {
+          setApiTestStatus('error');
+          setApiTestMessage(e.message || 'Falha ao conectar.');
       }
   };
 
@@ -119,7 +169,30 @@ const SettingsManager: React.FC = () => {
   const handleDeleteCategory = (cat: string) => { if (confirm(`Excluir ${cat}?`)) { deleteCategory(cat); setCategories(getCategories()); } };
   const handleAddRequestType = () => { if (newReqType.trim()) { addRequestType({id: Date.now().toString(), name: newReqType.trim(), price: newReqPrice}); setRequestTypes(getRequestTypes()); setNewReqType(''); } };
   const handleDeleteRequestType = (id: string) => { if (confirm('Excluir?')) { deleteRequestType(id); setRequestTypes(getRequestTypes()); } };
-  const handleResetDb = () => { if(confirm('Isso apagará a configuração de conexão local. Continuar?')) resetSystem(); };
+  const handleResetDb = () => {
+      setResetPassword('');
+      setResetError('');
+      setShowResetModal(true);
+  };
+
+  const handleResetConfirm = async () => {
+      if (!resetPassword) {
+          setResetError('Informe a senha do administrador.');
+          return;
+      }
+      setResetLoading(true);
+      setResetError('');
+      try {
+          const result = await loginUser(currentUser.email, resetPassword);
+          if (!result || result.role !== 'admin') {
+              setResetError('Senha invalida. Acao cancelada.');
+              return;
+          }
+          resetSystem();
+      } finally {
+          setResetLoading(false);
+      }
+  };
 
   return (
     <div className="space-y-6">
@@ -286,40 +359,115 @@ const SettingsManager: React.FC = () => {
         )}
 
         {activeTab === 'database' && (
-             <div className="max-w-xl bg-white p-6 rounded-xl border border-slate-200 space-y-6">
-                 <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Server size={20}/> Status do Banco de Dados</h3>
-                 <div className="space-y-2 text-sm">
-                     <div className="flex justify-between border-b border-slate-100 py-2">
-                         <span className="text-slate-500">Host</span>
-                         <span className="font-mono text-slate-800">{dbConfig?.host || 'Não configurado'}</span>
-                     </div>
-                     <div className="flex justify-between border-b border-slate-100 py-2">
-                         <span className="text-slate-500">Database</span>
-                         <span className="font-mono text-slate-800">{dbConfig?.dbName || '-'}</span>
-                     </div>
-                 </div>
-                 
-                 <div className="grid grid-cols-1 gap-3">
-                    <button 
-                        onClick={handleSyncDb} 
-                        disabled={syncingDb}
-                        className="bg-blue-600 text-white w-full py-3 rounded-lg flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors disabled:opacity-50"
-                    >
-                        {syncingDb ? <RefreshCw className="animate-spin" size={18}/> : <DbIcon size={18}/>}
-                        {syncingDb ? 'Sincronizando...' : 'Sincronizar Estrutura do Banco'}
-                    </button>
-                    
-                    <button onClick={handleResetDb} className="bg-slate-800 text-white w-full py-3 rounded-lg flex items-center justify-center gap-2 hover:bg-slate-900 transition-colors">
-                        <RotateCcw size={18}/> Resetar Conexão Local (Setup)
-                    </button>
-                 </div>
+            <div className="space-y-6">
+                <div className="bg-white p-6 rounded-xl border border-slate-200">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Server size={18} className="text-slate-500" />
+                        <h3 className="font-bold text-slate-800">Servidor da Aplicacao</h3>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                        <div className="md:col-span-2">
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Endereco do Servidor</label>
+                            <input
+                                className="border border-slate-300 p-2.5 w-full rounded-lg"
+                                value={apiBaseUrl}
+                                onChange={(e) => setApiBaseUrlState(e.target.value)}
+                                placeholder="http://192.168.0.10:3001"
+                            />
+                            <p className="text-[11px] text-slate-400 mt-1">Use o IP do servidor onde o backend esta rodando.</p>
+                        </div>
+                        <div className="flex gap-2">
+                            <button onClick={handleApiSave} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold">Salvar</button>
+                            <button onClick={handleApiTest} className="bg-slate-900 text-white px-4 py-2 rounded-lg font-bold">Testar</button>
+                        </div>
+                    </div>
+                    {apiTestStatus !== 'idle' && (
+                        <div className={`mt-4 p-3 rounded-lg text-sm flex items-center gap-2 ${apiTestStatus === 'success' ? 'bg-emerald-50 text-emerald-700' : apiTestStatus === 'error' ? 'bg-red-50 text-red-700' : 'bg-slate-50 text-slate-600'}`}>
+                            {apiTestStatus === 'success' ? <CheckCircle size={16}/> : apiTestStatus === 'error' ? <AlertTriangle size={16}/> : <RefreshCw size={16} className="animate-spin" />}
+                            {apiTestMessage}
+                        </div>
+                    )}
+                    <button onClick={handleApiReset} className="mt-4 text-xs text-slate-500 hover:text-slate-700">Restaurar padrao</button>
+                </div>
 
-                 <p className="text-[10px] text-slate-400 italic text-center">
-                    Use o botão "Sincronizar" sempre que houver atualizações na estrutura do sistema.
-                 </p>
-             </div>
+                <div className="max-w-xl bg-white p-6 rounded-xl border border-slate-200 space-y-6">
+                    <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Server size={20}/> Status do Banco de Dados</h3>
+                    <div className="space-y-2 text-sm">
+                        <div className="flex justify-between border-b border-slate-100 py-2">
+                            <span className="text-slate-500">Host</span>
+                            <span className="font-mono text-slate-800">{dbConfig?.host || 'Nao configurado'}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-slate-100 py-2">
+                            <span className="text-slate-500">Database</span>
+                            <span className="font-mono text-slate-800">{dbConfig?.dbName || '-'}</span>
+                        </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 gap-3">
+                       <button 
+                           onClick={handleSyncDb} 
+                           disabled={syncingDb}
+                           className="bg-blue-600 text-white w-full py-3 rounded-lg flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors disabled:opacity-50"
+                       >
+                           {syncingDb ? <RefreshCw className="animate-spin" size={18}/> : <DbIcon size={18}/>}
+                           {syncingDb ? 'Sincronizando...' : 'Sincronizar Estrutura do Banco'}
+                       </button>
+                       
+                       <button onClick={handleResetDb} className="bg-slate-800 text-white w-full py-3 rounded-lg flex items-center justify-center gap-2 hover:bg-slate-900 transition-colors">
+                           <RotateCcw size={18}/> Resetar Conexao Local (Setup)
+                       </button>
+                    </div>
+
+                    <p className="text-[10px] text-slate-400 italic text-center">
+                       Use o botao \"Sincronizar\" sempre que houver atualizacoes na estrutura do sistema.
+                    </p>
+                </div>
+            </div>
         )}
+
       </div>
+
+      {showResetModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+                <div className="p-5 border-b border-slate-100">
+                    <h3 className="text-lg font-bold text-slate-800">Confirmar Reset do Sistema</h3>
+                    <p className="text-xs text-slate-500 mt-1">Essa acao volta para a tela de setup e pode interromper o uso.</p>
+                </div>
+                <div className="p-5 space-y-4">
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Senha do Administrador</label>
+                        <input
+                            type="password"
+                            className="w-full border border-slate-300 rounded-lg p-2.5 text-sm"
+                            value={resetPassword}
+                            onChange={(e) => setResetPassword(e.target.value)}
+                            autoFocus
+                        />
+                        {resetError && (
+                            <p className="text-[11px] text-red-600 mt-2">{resetError}</p>
+                        )}
+                    </div>
+                </div>
+                <div className="px-5 pb-5 flex justify-end gap-2">
+                    <button
+                        onClick={() => setShowResetModal(false)}
+                        className="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-100"
+                        disabled={resetLoading}
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        onClick={handleResetConfirm}
+                        className="px-4 py-2 rounded-lg text-sm font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-60"
+                        disabled={resetLoading}
+                    >
+                        {resetLoading ? 'Validando...' : 'Confirmar Reset'}
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
     </div>
   );
 };
