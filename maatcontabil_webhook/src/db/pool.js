@@ -18,7 +18,7 @@ export const initDbConnection = (config) => {
             database: config.dbName,
             password: config.pass,
             port: config.port,
-            ssl: config.ssl ? resolveSslOptions() : false
+            ssl: { rejectUnauthorized: false }
         });
         dbPool
             .query('SELECT NOW()')
