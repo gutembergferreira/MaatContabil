@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Database, Server, Play, CheckCircle, Terminal, LogIn, AlertTriangle } from 'lucide-react';
-import { DbConfig, initializeDatabase } from '../services/dbService';
+import { DbConfig, initializeDatabase, checkBackendHealth } from '../services/dbService';
 import { POSTGRES_SCHEMA } from '../services/sqlSchema';
+import { getApiBaseUrl, getApiUrl, setApiBaseOverride } from '../services/apiConfig';
 
 interface DatabaseSetupProps {
     onComplete: () => void;
@@ -20,11 +21,19 @@ const DatabaseSetup: React.FC<DatabaseSetupProps> = ({ onComplete }) => {
     const [status, setStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle');
     const [logs, setLogs] = useState<string[]>([]);
     const [showSchema, setShowSchema] = useState(false);
+    const [apiBaseInput, setApiBaseInput] = useState(getApiBaseUrl());
 
     const handleRunSetup = async (e: React.FormEvent) => {
         e.preventDefault();
         setStatus('running');
-        setLogs(['Iniciando comunicação com Backend (/api)...']);
+        setApiBaseOverride(apiBaseInput);
+        setLogs([`Iniciando comunicacao com Backend (${getApiUrl()})...`]);
+        const backendReady = await checkBackendHealth();
+        if (backendReady) {
+            setLogs(prev => [...prev, 'Backend respondeu com sucesso.', 'Banco de dados ja configurado.']);
+            setStatus('success');
+            return;
+        }
         
         const result = await initializeDatabase(config);
         
@@ -57,6 +66,19 @@ const DatabaseSetup: React.FC<DatabaseSetupProps> = ({ onComplete }) => {
                     </div>
 
                     <form onSubmit={handleRunSetup} className="space-y-4">
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">Base da API (opcional)</label>
+                            <input
+                                type="text"
+                                value={apiBaseInput}
+                                onChange={e => setApiBaseInput(e.target.value)}
+                                className="w-full border border-slate-300 rounded p-2 text-sm"
+                                placeholder="/api ou https://api.seudominio.com"
+                            />
+                            <p className="text-[11px] text-slate-400 mt-1">
+                                Use /api quando frontend e backend estiverem no mesmo dominio.
+                            </p>
+                        </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 mb-1">Host</label>

@@ -13,19 +13,32 @@ const normalizeApiUrl = (base: string) => {
     return `${base}/api`;
 };
 
+const API_BASE_KEY = 'maat_api_base';
 const envBase = (import.meta as any).env?.VITE_API_BASE_URL || '';
-let apiBaseOverride = normalizeBase(String(envBase || ''));
+const storedBase = typeof window !== 'undefined' ? window.localStorage.getItem(API_BASE_KEY) : '';
+let apiBaseOverride = normalizeBase(String(storedBase || envBase || ''));
 
 export const getApiBaseUrl = (): string => apiBaseOverride;
+
+export const setApiBaseOverride = (value: string) => {
+    apiBaseOverride = normalizeBase(value);
+    if (typeof window !== 'undefined') {
+        if (apiBaseOverride) {
+            window.localStorage.setItem(API_BASE_KEY, apiBaseOverride);
+        } else {
+            window.localStorage.removeItem(API_BASE_KEY);
+        }
+    }
+};
 
 export const getApiUrl = (): string => normalizeApiUrl(apiBaseOverride);
 
 export const loadApiBaseFromServer = async (): Promise<string> => {
     try {
-        const res = await fetch('/api/app-settings');
+        const res = await fetch(`${getApiUrl()}/app-settings`);
         if (!res.ok) return apiBaseOverride;
         const data = await res.json();
-        apiBaseOverride = normalizeBase(String(data.apiBaseUrl || ''));
+        setApiBaseOverride(String(data.apiBaseUrl || ''));
         return apiBaseOverride;
     } catch {
         return apiBaseOverride;
@@ -34,19 +47,19 @@ export const loadApiBaseFromServer = async (): Promise<string> => {
 
 export const saveApiBaseToServer = async (value: string) => {
     const normalized = normalizeBase(value);
-    await fetch('/api/app-settings', {
+    await fetch(`${getApiUrl()}/app-settings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ apiBaseUrl: normalized })
     });
-    apiBaseOverride = normalized;
+    setApiBaseOverride(normalized);
 };
 
 export const clearApiBaseOnServer = async () => {
-    await fetch('/api/app-settings', {
+    await fetch(`${getApiUrl()}/app-settings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ apiBaseUrl: '' })
     });
-    apiBaseOverride = '';
+    setApiBaseOverride('');
 };
