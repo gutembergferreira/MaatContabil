@@ -67,6 +67,31 @@
                     ssl: { type: 'boolean', example: false }
                 }
             },
+            SyncResponse: {
+                type: 'object',
+                properties: {
+                    companies: { type: 'array', items: { type: 'object' } },
+                    users: { type: 'array', items: { type: 'object' } },
+                    requestTypes: { type: 'array', items: { type: 'object' } },
+                    categories: { type: 'array', items: { type: 'string' } },
+                    requests: { type: 'array', items: { type: 'object' } },
+                    attachments: { type: 'array', items: { type: 'object' } },
+                    documents: { type: 'array', items: { type: 'object' } },
+                    chat: { type: 'array', items: { type: 'object' } },
+                    notifications: { type: 'array', items: { type: 'object' } },
+                    obligations: { type: 'array', items: { type: 'object' } },
+                    routines: { type: 'array', items: { type: 'object' } },
+                    workSites: { type: 'array', items: { type: 'object' } },
+                    employees: { type: 'array', items: { type: 'object' } },
+                    timeSheets: { type: 'array', items: { type: 'object' } },
+                    timeEntries: { type: 'array', items: { type: 'object' } },
+                    timeComments: { type: 'array', items: { type: 'object' } },
+                    payrolls: { type: 'array', items: { type: 'object' } },
+                    hrAdmissions: { type: 'array', items: { type: 'object' } },
+                    hrRequests: { type: 'array', items: { type: 'object' } },
+                    fieldFeedback: { type: 'array', items: { type: 'object' } }
+                }
+            },
             User: {
                 type: 'object',
                 properties: {
@@ -376,7 +401,8 @@
                     200: {
                         description: 'Resultado da configuracao',
                         content: { 'application/json': { schema: { $ref: '#/components/schemas/SetupDbResponse' } } }
-                    }
+                    },
+                    500: { description: 'Erro interno', content: { 'application/json': { schema: { $ref: '#/components/schemas/SetupDbResponse' }, examples: { server: { value: { success: false, message: 'Erro', logs: [] } } } } } }
                 }
             }
         },
@@ -432,7 +458,7 @@
                         description: 'Payload sync',
                         content: {
                             'application/json': {
-                                schema: { type: 'object' },
+                                schema: { $ref: '#/components/schemas/SyncResponse' },
                                 examples: {
                                     default: {
                                         value: {
@@ -461,7 +487,8 @@
                                 }
                             }
                         }
-                    }
+                    },
+                    500: { description: 'Erro interno', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' }, examples: { server: { value: { error: 'Erro' } } } } } }
                 }
             }
         },
@@ -488,7 +515,8 @@
                         description: 'Token e usuario',
                         content: { 'application/json': { schema: { $ref: '#/components/schemas/LoginResponse' } } }
                     },
-                    401: { description: 'Invalid credentials', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+                    401: { description: 'Invalid credentials', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' }, examples: { invalid: { value: { error: 'Invalid credentials' } } } } } },
+                    500: { description: 'Erro interno', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' }, examples: { server: { value: { error: 'Erro' } } } } } }
                 }
             }
         },
@@ -609,7 +637,43 @@
                     }
                 },
                 responses: {
-                    200: { description: 'Arquivo salvo' },
+                    200: {
+                        description: 'Arquivo salvo',
+                        content: {
+                            'application/json': {
+                                schema: {
+                                    type: 'object',
+                                    properties: {
+                                        success: { type: 'boolean' },
+                                        attachment: {
+                                            type: 'object',
+                                            properties: {
+                                                id: { type: 'string' },
+                                                entityType: { type: 'string' },
+                                                entityId: { type: 'string' },
+                                                name: { type: 'string' },
+                                                url: { type: 'string' }
+                                            }
+                                        }
+                                    }
+                                },
+                                examples: {
+                                    default: {
+                                        value: {
+                                            success: true,
+                                            attachment: {
+                                                id: 'uuid',
+                                                entityType: 'monthly_routine',
+                                                entityId: 'uuid',
+                                                name: 'arquivo.pdf',
+                                                url: '/uploads/arquivo.pdf'
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
                     400: { description: 'Dados invalidos', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' }, examples: { missing: { value: { error: 'Missing routine or category' } } } } } },
                     500: { description: 'Erro interno', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' }, examples: { server: { value: { error: 'Erro' } } } } } }
                 }
@@ -737,7 +801,47 @@
                     }
                 },
                 responses: {
-                    200: { description: 'Anexo salvo' },
+                    200: {
+                        description: 'Anexo salvo',
+                        content: {
+                            'application/json': {
+                                schema: {
+                                    type: 'object',
+                                    properties: {
+                                        success: { type: 'boolean' },
+                                        attachment: {
+                                            type: 'object',
+                                            properties: {
+                                                id: { type: 'string' },
+                                                entityType: { type: 'string' },
+                                                entityId: { type: 'string' },
+                                                name: { type: 'string' },
+                                                url: { type: 'string' },
+                                                uploadedBy: { type: 'string' },
+                                                createdAt: { type: 'string' }
+                                            }
+                                        }
+                                    }
+                                },
+                                examples: {
+                                    default: {
+                                        value: {
+                                            success: true,
+                                            attachment: {
+                                                id: 'uuid',
+                                                entityType: 'hr_request',
+                                                entityId: 'uuid',
+                                                name: 'documento.pdf',
+                                                url: '/uploads/documento.pdf',
+                                                uploadedBy: 'uuid',
+                                                createdAt: '2025-12-27T12:00:00.000Z'
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
                     400: { description: 'Arquivo ausente', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' }, examples: { missing: { value: { error: 'Arquivo nao enviado.' } } } } } },
                     500: { description: 'Erro interno', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' }, examples: { server: { value: { error: 'Erro' } } } } } }
                 }
@@ -823,7 +927,15 @@
                     }
                 },
                 responses: {
-                    200: { description: 'Certificados salvos' },
+                    200: {
+                        description: 'Certificados salvos',
+                        content: {
+                            'application/json': {
+                                schema: { $ref: '#/components/schemas/GenericSuccess' },
+                                examples: { default: { value: { success: true } } }
+                            }
+                        }
+                    },
                     500: { description: 'Erro interno', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' }, examples: { server: { value: { error: 'Erro' } } } } } }
                 }
             }

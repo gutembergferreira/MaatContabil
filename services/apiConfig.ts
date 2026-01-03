@@ -1,6 +1,8 @@
 const normalizeBase = (value: string) => {
     const trimmed = value.trim().replace(/\/+$/, '');
     if (!trimmed) return '';
+    if (trimmed.startsWith('/')) return trimmed;
+    if (trimmed === 'http:' || trimmed === 'https:') return '';
     if (/^https?:\/\//i.test(trimmed)) return trimmed;
     return `http://${trimmed}`;
 };

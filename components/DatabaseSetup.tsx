@@ -24,7 +24,7 @@ const DatabaseSetup: React.FC<DatabaseSetupProps> = ({ onComplete }) => {
     const handleRunSetup = async (e: React.FormEvent) => {
         e.preventDefault();
         setStatus('running');
-        setLogs(['Iniciando comunicação com Backend (Porta 3001)...']);
+        setLogs(['Iniciando comunicação com Backend (/api)...']);
         
         const result = await initializeDatabase(config);
         
@@ -52,7 +52,7 @@ const DatabaseSetup: React.FC<DatabaseSetupProps> = ({ onComplete }) => {
                              <h1 className="text-2xl font-bold text-slate-800">Ma'at Setup</h1>
                         </div>
                         <p className="text-slate-500 text-sm">
-                            Configure a conexão com o PostgreSQL local. O Backend (Node.js) deve estar rodando na porta 3001.
+                            Configure a conexão com o PostgreSQL local. O Backend (Node.js) deve estar acessível via /api.
                         </p>
                     </div>
 
