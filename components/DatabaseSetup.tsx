@@ -105,6 +105,15 @@ const DatabaseSetup: React.FC<DatabaseSetupProps> = ({ onComplete }) => {
                              <label className="block text-xs font-bold text-slate-500 mb-1">Database Name</label>
                              <input required type="text" value={config.dbName} onChange={e => setConfig({...config, dbName: e.target.value})} className="w-full border border-slate-300 rounded p-2 text-sm" placeholder="maat_contabil" />
                         </div>
+
+                        <label className="flex items-center gap-2 text-xs text-slate-600">
+                            <input
+                                type="checkbox"
+                                checked={config.ssl}
+                                onChange={e => setConfig({ ...config, ssl: e.target.checked })}
+                            />
+                            Usar SSL (recomendado para bancos gerenciados)
+                        </label>
                         
                         <div className="pt-4">
                             {status === 'success' ? (

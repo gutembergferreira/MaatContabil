@@ -16,7 +16,8 @@ export const initDbConnection = (config) => {
             host: config.host,
             database: config.dbName,
             password: config.pass,
-            port: config.port
+            port: config.port,
+            ssl: config.ssl ? { rejectUnauthorized: false } : false
         });
         dbPool
             .query('SELECT NOW()')
@@ -32,8 +33,11 @@ export const initDbConnection = (config) => {
     }
 };
 
-const resolveSslOptions = () => {
+const resolveSslOptions = (connectionString = '') => {
     const sslMode = String(DATABASE_SSLMODE || '').toLowerCase();
+    if (!sslMode && /sslmode=require/i.test(connectionString)) {
+        return { rejectUnauthorized: false };
+    }
     if (DATABASE_SSL || sslMode === 'require' || sslMode === 'verify-full') {
         return { rejectUnauthorized: sslMode === 'verify-full' };
     }
@@ -45,7 +49,7 @@ export const initDbConnectionFromUrl = (connectionString) => {
     try {
         dbPool = new Pool({
             connectionString,
-            ssl: resolveSslOptions()
+            ssl: resolveSslOptions(connectionString)
         });
         dbPool
             .query('SELECT NOW()')

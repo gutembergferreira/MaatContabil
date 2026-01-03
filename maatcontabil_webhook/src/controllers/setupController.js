@@ -14,7 +14,8 @@ export const setupDb = async (req, res) => {
         logs.push(m);
     };
     try {
-        const rootClient = new Client({ user: config.user, host: config.host, database: 'postgres', password: config.pass, port: config.port });
+        const ssl = config.ssl ? { rejectUnauthorized: false } : false;
+        const rootClient = new Client({ user: config.user, host: config.host, database: 'postgres', password: config.pass, port: config.port, ssl });
         await rootClient.connect();
         const check = await rootClient.query(`SELECT 1 FROM pg_database WHERE datname = '${config.dbName}'`);
         if (check.rowCount === 0) {
@@ -23,7 +24,7 @@ export const setupDb = async (req, res) => {
         }
         await rootClient.end();
 
-        const dbClient = new Client({ user: config.user, host: config.host, database: config.dbName, password: config.pass, port: config.port });
+        const dbClient = new Client({ user: config.user, host: config.host, database: config.dbName, password: config.pass, port: config.port, ssl });
         await dbClient.connect();
         await dbClient.query(SQL_SCHEMA);
         log('Tabelas criadas/atualizadas.');
