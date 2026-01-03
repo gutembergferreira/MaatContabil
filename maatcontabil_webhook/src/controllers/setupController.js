@@ -1,10 +1,21 @@
 ﻿import fs from 'fs';
+import path from 'path';
 import pg from 'pg';
 import { SQL_SCHEMA } from '../db/schema.js';
-import { DB_CONFIG_FILE } from '../config.js';
+import { CERTS_DIR, DB_CONFIG_FILE } from '../config.js';
 import { initDbConnection, getPool, saveDbConfig } from '../db/pool.js';
 
 const { Client } = pg;
+const resolveSslConfig = () => {
+    const caFile = process.env.DATABASE_SSL_CA_FILE || process.env.PGSSLROOTCERT || '';
+    const caPath = caFile
+        ? (path.isAbsolute(caFile) ? caFile : path.join(CERTS_DIR, caFile))
+        : path.join(CERTS_DIR, 'dbpostgres-ca-certificate.crt');
+    const ca = fs.existsSync(caPath) ? fs.readFileSync(caPath, 'utf8') : null;
+    if (ca) return { ca, rejectUnauthorized: true };
+    return { rejectUnauthorized: false };
+};
+
 
 export const setupDb = async (req, res) => {
     const config = req.body;
@@ -14,7 +25,7 @@ export const setupDb = async (req, res) => {
         logs.push(m);
     };
     try {
-        const ssl = config.ssl ? { rejectUnauthorized: false } : false;
+        const ssl = config.ssl ? resolveSslConfig() : false;
         const rootClient = new Client({ user: config.user, host: config.host, database: 'postgres', password: config.pass, port: config.port, ssl });
         await rootClient.connect();
         const check = await rootClient.query(`SELECT 1 FROM pg_database WHERE datname = '${config.dbName}'`);

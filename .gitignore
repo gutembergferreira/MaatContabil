@@ -13,7 +13,9 @@ dist-ssr
 *.local
 maatcontabil_webhook/node_modules
 maatcontabil_webhook/uploads
-maatcontabil_webhook/certs
+maatcontabil_webhook/certs/*
+!maatcontabil_webhook/certs/
+!maatcontabil_webhook/certs/dbpostgres-ca-certificate.crt
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

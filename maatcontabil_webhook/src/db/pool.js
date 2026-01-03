@@ -1,6 +1,7 @@
 ﻿import fs from 'fs';
+import path from 'path';
 import pg from 'pg';
-import { DB_CONFIG_FILE, DATABASE_SSL, DATABASE_SSLMODE } from '../config.js';
+import { CERTS_DIR, DB_CONFIG_FILE, DATABASE_SSL, DATABASE_SSLMODE } from '../config.js';
 import { ensureSchema } from './schemaService.js';
 
 const { Pool } = pg;
@@ -17,7 +18,7 @@ export const initDbConnection = (config) => {
             database: config.dbName,
             password: config.pass,
             port: config.port,
-            ssl: config.ssl ? { rejectUnauthorized: false } : false
+            ssl: config.ssl ? resolveSslOptions() : false
         });
         dbPool
             .query('SELECT NOW()')
@@ -34,6 +35,14 @@ export const initDbConnection = (config) => {
 };
 
 const resolveSslOptions = (connectionString = '') => {
+    const caFile = process.env.DATABASE_SSL_CA_FILE || process.env.PGSSLROOTCERT || '';
+    const caPath = caFile
+        ? (path.isAbsolute(caFile) ? caFile : path.join(CERTS_DIR, caFile))
+        : path.join(CERTS_DIR, 'dbpostgres-ca-certificate.crt');
+    const ca = fs.existsSync(caPath) ? fs.readFileSync(caPath, 'utf8') : null;
+    if (ca) {
+        return { ca, rejectUnauthorized: true };
+    }
     const sslMode = String(DATABASE_SSLMODE || '').toLowerCase();
     if (!sslMode && /sslmode=require/i.test(connectionString)) {
         return { rejectUnauthorized: false };
