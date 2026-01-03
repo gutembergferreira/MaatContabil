@@ -1,5 +1,3 @@
-let apiBaseOverride = '';
-
 const normalizeBase = (value: string) => {
     const trimmed = value.trim().replace(/\/+$/, '');
     if (!trimmed) return '';
@@ -12,6 +10,9 @@ const normalizeApiUrl = (base: string) => {
     if (/\/api\/?$/i.test(base)) return base.replace(/\/+$/, '');
     return `${base}/api`;
 };
+
+const envBase = (import.meta as any).env?.VITE_API_BASE_URL || '';
+let apiBaseOverride = normalizeBase(String(envBase || ''));
 
 export const getApiBaseUrl = (): string => apiBaseOverride;
 
