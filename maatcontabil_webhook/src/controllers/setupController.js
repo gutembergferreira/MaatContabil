@@ -7,6 +7,11 @@ import { initDbConnection, getPool, saveDbConfig } from '../db/pool.js';
 
 const { Client } = pg;
 const resolveSslConfig = () => {
+    const sslInsecure = String(process.env.DATABASE_SSL_INSECURE || '').toLowerCase() === 'true';
+    if (sslInsecure) {
+        console.warn('SSL: modo inseguro habilitado (rejectUnauthorized=false).');
+        return { rejectUnauthorized: false };
+    }
     const caInline = process.env.DATABASE_SSL_CA || '';
     const caBase64 = process.env.DATABASE_SSL_CA_BASE64 || '';
     const caFile = process.env.DATABASE_SSL_CA_FILE || process.env.PGSSLROOTCERT || '';
