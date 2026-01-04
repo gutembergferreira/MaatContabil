@@ -42,8 +42,14 @@ const resolveSslOptions = (connectionString = '', forceSsl = false) => {
         ? (path.isAbsolute(caFile) ? caFile : path.join(CERTS_DIR, caFile))
         : path.join(CERTS_DIR, 'dbpostgres-ca-certificate.crt');
     const caFromFile = fs.existsSync(caPath) ? fs.readFileSync(caPath, 'utf8') : '';
-    const ca = caInline || (caBase64 ? Buffer.from(caBase64, 'base64').toString('utf8') : '') || caFromFile;
+    const caFromBase64 = caBase64 ? Buffer.from(caBase64, 'base64').toString('utf8') : '';
+    const ca = caInline || caFromBase64 || caFromFile;
     if (ca) {
+        const source = caInline ? 'DATABASE_SSL_CA'
+            : caBase64 ? 'DATABASE_SSL_CA_BASE64'
+            : caFile ? `DATABASE_SSL_CA_FILE (${caPath})`
+            : `certs (${caPath})`;
+        console.log(`SSL: CA carregado de ${source}.`);
         return { ca, rejectUnauthorized: true };
     }
     const sslMode = String(DATABASE_SSLMODE || '').toLowerCase();
@@ -54,6 +60,7 @@ const resolveSslOptions = (connectionString = '', forceSsl = false) => {
         || /sslmode=require/i.test(connectionString)
         || /sslmode=verify-full/i.test(connectionString);
     if (!wantsSsl) return false;
+    console.warn('SSL: nenhum CA encontrado. Usando rejectUnauthorized=false.');
     return { rejectUnauthorized: false };
 };
 
