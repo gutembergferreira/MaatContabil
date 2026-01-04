@@ -16,6 +16,7 @@ maatcontabil_webhook/uploads
 maatcontabil_webhook/certs/*
 !maatcontabil_webhook/certs/
 !maatcontabil_webhook/certs/dbpostgres-ca-certificate.crt
+!maatcontabil_webhook/certs/ca-certificate.crt
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

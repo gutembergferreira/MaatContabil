@@ -18,7 +18,9 @@ const resolveSslConfig = () => {
     const caPath = caFile
         ? (path.isAbsolute(caFile) ? caFile : path.join(CERTS_DIR, caFile))
         : path.join(CERTS_DIR, 'dbpostgres-ca-certificate.crt');
-    const caFromFile = fs.existsSync(caPath) ? fs.readFileSync(caPath, 'utf8') : '';
+    const fallbackPath = path.join(CERTS_DIR, 'ca-certificate.crt');
+    const fileSourcePath = fs.existsSync(caPath) ? caPath : (fs.existsSync(fallbackPath) ? fallbackPath : '');
+    const caFromFile = fileSourcePath ? fs.readFileSync(fileSourcePath, 'utf8') : '';
     const ca = caInline || (caBase64 ? Buffer.from(caBase64, 'base64').toString('utf8') : '') || caFromFile;
     if (ca) return { ca, rejectUnauthorized: true };
     return { rejectUnauthorized: false };

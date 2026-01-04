@@ -37,6 +37,9 @@ export const initDbConnection = (config) => {
 const resolveSslOptions = (connectionString = '', forceSsl = false) => {
     const sslInsecure = String(process.env.DATABASE_SSL_INSECURE || '').toLowerCase() === 'true';
     if (sslInsecure) {
+        if (process.env.NODE_TLS_REJECT_UNAUTHORIZED !== '0') {
+            process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+        }
         console.warn('SSL: modo inseguro habilitado (rejectUnauthorized=false).');
         return { rejectUnauthorized: false };
     }
@@ -46,14 +49,16 @@ const resolveSslOptions = (connectionString = '', forceSsl = false) => {
     const caPath = caFile
         ? (path.isAbsolute(caFile) ? caFile : path.join(CERTS_DIR, caFile))
         : path.join(CERTS_DIR, 'dbpostgres-ca-certificate.crt');
-    const caFromFile = fs.existsSync(caPath) ? fs.readFileSync(caPath, 'utf8') : '';
+    const fallbackPath = path.join(CERTS_DIR, 'ca-certificate.crt');
+    const fileSourcePath = fs.existsSync(caPath) ? caPath : (fs.existsSync(fallbackPath) ? fallbackPath : '');
+    const caFromFile = fileSourcePath ? fs.readFileSync(fileSourcePath, 'utf8') : '';
     const caFromBase64 = caBase64 ? Buffer.from(caBase64, 'base64').toString('utf8') : '';
     const ca = caInline || caFromBase64 || caFromFile;
     if (ca) {
         const source = caInline ? 'DATABASE_SSL_CA'
             : caBase64 ? 'DATABASE_SSL_CA_BASE64'
             : caFile ? `DATABASE_SSL_CA_FILE (${caPath})`
-            : `certs (${caPath})`;
+            : `certs (${fileSourcePath || caPath})`;
         console.log(`SSL: CA carregado de ${source}.`);
         return { ca, rejectUnauthorized: true };
     }
