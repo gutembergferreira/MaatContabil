@@ -18,7 +18,7 @@ export const initDbConnection = (config) => {
             database: config.dbName,
             password: config.pass,
             port: config.port,
-            ssl: { rejectUnauthorized: false }
+            ssl: config.ssl ? resolveSslOptions('', true) : false
         });
         dbPool
             .query('SELECT NOW()')
@@ -34,23 +34,27 @@ export const initDbConnection = (config) => {
     }
 };
 
-const resolveSslOptions = (connectionString = '') => {
+const resolveSslOptions = (connectionString = '', forceSsl = false) => {
+    const caInline = process.env.DATABASE_SSL_CA || '';
+    const caBase64 = process.env.DATABASE_SSL_CA_BASE64 || '';
     const caFile = process.env.DATABASE_SSL_CA_FILE || process.env.PGSSLROOTCERT || '';
     const caPath = caFile
         ? (path.isAbsolute(caFile) ? caFile : path.join(CERTS_DIR, caFile))
         : path.join(CERTS_DIR, 'dbpostgres-ca-certificate.crt');
-    const ca = fs.existsSync(caPath) ? fs.readFileSync(caPath, 'utf8') : null;
+    const caFromFile = fs.existsSync(caPath) ? fs.readFileSync(caPath, 'utf8') : '';
+    const ca = caInline || (caBase64 ? Buffer.from(caBase64, 'base64').toString('utf8') : '') || caFromFile;
     if (ca) {
         return { ca, rejectUnauthorized: true };
     }
     const sslMode = String(DATABASE_SSLMODE || '').toLowerCase();
-    if (!sslMode && /sslmode=require/i.test(connectionString)) {
-        return { rejectUnauthorized: false };
-    }
-    if (DATABASE_SSL || sslMode === 'require' || sslMode === 'verify-full') {
-        return { rejectUnauthorized: sslMode === 'verify-full' };
-    }
-    return false;
+    const wantsSsl = forceSsl
+        || DATABASE_SSL
+        || sslMode === 'require'
+        || sslMode === 'verify-full'
+        || /sslmode=require/i.test(connectionString)
+        || /sslmode=verify-full/i.test(connectionString);
+    if (!wantsSsl) return false;
+    return { rejectUnauthorized: false };
 };
 
 export const initDbConnectionFromUrl = (connectionString) => {

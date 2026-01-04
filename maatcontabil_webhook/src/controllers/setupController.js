@@ -7,11 +7,14 @@ import { initDbConnection, getPool, saveDbConfig } from '../db/pool.js';
 
 const { Client } = pg;
 const resolveSslConfig = () => {
+    const caInline = process.env.DATABASE_SSL_CA || '';
+    const caBase64 = process.env.DATABASE_SSL_CA_BASE64 || '';
     const caFile = process.env.DATABASE_SSL_CA_FILE || process.env.PGSSLROOTCERT || '';
     const caPath = caFile
         ? (path.isAbsolute(caFile) ? caFile : path.join(CERTS_DIR, caFile))
         : path.join(CERTS_DIR, 'dbpostgres-ca-certificate.crt');
-    const ca = fs.existsSync(caPath) ? fs.readFileSync(caPath, 'utf8') : null;
+    const caFromFile = fs.existsSync(caPath) ? fs.readFileSync(caPath, 'utf8') : '';
+    const ca = caInline || (caBase64 ? Buffer.from(caBase64, 'base64').toString('utf8') : '') || caFromFile;
     if (ca) return { ca, rejectUnauthorized: true };
     return { rejectUnauthorized: false };
 };
