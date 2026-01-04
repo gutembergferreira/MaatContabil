@@ -10,6 +10,7 @@ ingress:
       match:
         path:
           prefix: /api
+      preserve_path_prefix: true
     - component:
         name: web
       match:
@@ -34,6 +35,10 @@ services:
         value: production
       - key: PORT
         value: "8080"
+      - key: DATABASE_SSL_INSECURE
+        value: "true"
+      - key: DATABASE_SSL_CA_FILE
+        value: ca-certificate.crt    
       - key: DATABASE_URL
         value: ${DATABASE_URL}
         type: SECRET

@@ -51,7 +51,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 <div className="w-full max-w-md space-y-8">
                     <div>
                         <h2 className="text-3xl font-bold text-slate-800">Bem-vindo</h2>
-                        <p className="text-slate-500 mt-2">Use email (admin/cliente) ou CPF (funcionário)</p>
+                        <p className="text-slate-500 mt-2">Acesse com seu usuario e senha.</p>
                     </div>
 
                     <form onSubmit={handleLogin} className="space-y-6">
@@ -69,7 +69,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                                     value={email}
                                     onChange={e => setEmail(e.target.value)}
                                     className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
-                                    placeholder="admin@maat.com ou 00000000000"
+                                    placeholder="Digite seu email ou CPF"
                                 />
                             </div>
                         </div>
@@ -83,7 +83,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                                     value={password}
                                     onChange={e => setPassword(e.target.value)}
                                     className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
-                                    placeholder="Senha ou data nascimento (DDMMAAAA)"
+                                    placeholder="Digite sua senha"
                                 />
                             </div>
                         </div>
@@ -99,9 +99,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                     </form>
                     
                     <div className="flex flex-col items-center gap-4 mt-8 pt-6 border-t border-slate-100">
-                        <div className="text-center text-xs text-slate-400">
-                            Dica: Se resetou o banco, use <b>admin@maat.com</b> / <b>admin</b>
-                        </div>
                     </div>
                 </div>
             </div>
